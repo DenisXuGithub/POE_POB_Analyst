@@ -16,7 +16,7 @@
       align-items: center;
     }
     h2 { color: #f0a334; margin-bottom: 10px; }
-    p.subtitle { color: #8b949e; margin-top: 0; margin-bottom: 20px; font-size: 14px; }
+    p.subtitle { color: #8b949e; margin-top: 0; margin-bottom: 20px; font-size: 14px; text-align: center; }
     .search-box {
       width: 100%;
       max-width: 900px;
@@ -52,7 +52,7 @@
     .display-frame {
       width: 100%;
       max-width: 1200px;
-      height: 85vh;
+      height: 80vh;
       background-color: #161b22;
       border: 1px solid #30363d;
       border-radius: 8px;
@@ -70,76 +70,51 @@
       color: #8b949e;
       text-align: center;
       font-size: 16px;
+      padding: 20px;
     }
   </style>
 </head>
 <body>
 
   <h2>Path of Building 線上解析檢視器</h2>
-  <p class="subtitle">請在下方輸入您的 PoB 匯出碼或 pobb.in 連結，即可立即完整呈現角色面板</p>
+  <p class="subtitle">建議直接貼上 pobb.in 的網址（例如 https://pobb.in/xxxxx），即可完美載入完整面板與分析數據！</p>
 
   <div class="search-box">
-    <input type="text" id="pobInput" placeholder="在此貼上 PoB 匯出碼 (Pastebin Code) 或網址...">
+    <input type="text" id="pobInput" placeholder="請輸入 pobb.in 網址或 PoB 連結...">
     <button onclick="renderPoB()">載入分析</button>
   </div>
 
   <div class="display-frame" id="viewerContainer">
-    <div class="placeholder">尚無資料，請於上方輸入 PoB 碼並點擊載入。</div>
+    <div class="placeholder">尚無資料，請於上方輸入網址並點擊載入。</div>
   </div>
 
   <script>
-    async function renderPoB() {
+    function renderPoB() {
       const inputVal = document.getElementById('pobInput').value.trim();
       const container = document.getElementById('viewerContainer');
 
       if (!inputVal) {
-        alert('請先輸入有效的 PoB 匯出碼！');
+        alert('請先輸入有效的連結！');
         return;
       }
 
-      container.innerHTML = `<div class="placeholder" style="color: #f0a334;">正在解析 PoB 數據，請稍候...</div>`;
+      let targetUrl = inputVal;
 
-      try {
-        // 如果使用者直接貼上網址
-        if (inputVal.startsWith('http')) {
-          let targetUrl = inputVal;
-          // 若是 pobb.in 網址，確保加上嵌入參數以獲得最佳顯示效果
-          if (targetUrl.includes('pobb.in') && !targetUrl.endsWith('/embed')) {
-            targetUrl = targetUrl.replace(/\/$/, '') + '/embed';
-          }
-          container.innerHTML = `<iframe src="${targetUrl}"></iframe>`;
-          return;
+      // 如果使用者貼上的是 pobb.in 的一般網址，自動轉換成 embed 嵌入格式以獲得最佳顯示效果
+      if (targetUrl.includes('pobb.in')) {
+        targetUrl = targetUrl.replace(/\/$/, ''); // 移除結尾斜線
+        if (!targetUrl.endsWith('/embed')) {
+          targetUrl += '/embed';
         }
-
-        // 如果使用者貼上的是純 PoB 匯出碼，透過 API 進行解析轉換
-        const response = await fetch('https://pobb.in/pob/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain',
-          },
-          body: inputVal
-        });
-
-        if (!response.ok) {
-          throw new Error('伺服器回應錯誤');
-        }
-
-        const data = await response.json();
-        
-        if (data.url) {
-          let embedUrl = data.url;
-          if (!embedUrl.endsWith('/embed')) {
-            embedUrl = embedUrl.replace(/\/$/, '') + '/embed';
-          }
-          container.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
-        } else {
-          throw new Error('無法取得解析後的頁面連結');
-        }
-
-      } catch (err) {
-        console.error(err);
-        container.innerHTML = `<div class="placeholder" style="color: #f85149;">解析失敗：無法讀取該 PoB 匯出碼，請檢查格式是否正確。</div>`;
+      } else if (!targetUrl.startsWith('http')) {
+        // 如果是純代碼，引導使用者透過 pobb.in 轉貼或直接貼上網址
+        container.innerHTML = `<div class="placeholder" style="color: #f0a334;">
+          為避免瀏覽器端解析授權限制，建議您先將 PoB 碼上傳至 <a href="https://pobb.in/" target="_blank" style="color: #58a6ff;">pobb.in</a>，<br>然後將產生的網址貼到上方即可完美顯示！
+        </div>`;
+        return;
       }
+
+      container.innerHTML = `<iframe src="${targetUrl}"></iframe>`;
     }
   </script>
 
