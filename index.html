@@ -71,26 +71,32 @@
       text-align: center;
       font-size: 16px;
       padding: 20px;
+      line-height: 1.6;
     }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
 
   <h2>Path of Building 線上解析檢視器</h2>
-  <p class="subtitle">建議直接貼上 pobb.in 的網址（例如 https://pobb.in/xxxxx），即可完美載入完整面板與分析數據！</p>
+  <p class="subtitle">請直接輸入 pobb.in 的網址（例如 https://pobb.in/xxxxx），即可完美載入完整面板與分析數據！</p>
 
   <div class="search-box">
-    <input type="text" id="pobInput" placeholder="請輸入 pobb.in 網址或 PoB 連結...">
+    <input type="text" id="pobInput" placeholder="請輸入 pobb.in 網址...">
     <button onclick="renderPoB()">載入分析</button>
   </div>
 
   <div class="display-frame" id="viewerContainer">
-    <div class="placeholder">尚無資料，請於上方輸入網址並點擊載入。</div>
+    <div class="placeholder">
+      尚無資料。<br>
+      如果您手邊只有 PoB 匯出碼，建議先至 <a href="https://pobb.in/" target="_blank">pobb.in</a> 產生網址，再將網址貼入上方即可！
+    </div>
   </div>
 
   <script>
     function renderPoB() {
-      const inputVal = document.getElementById('pobInput').value.trim();
+      let inputVal = document.getElementById('pobInput').value.trim();
       const container = document.getElementById('viewerContainer');
 
       if (!inputVal) {
@@ -98,25 +104,4 @@
         return;
       }
 
-      let targetUrl = inputVal;
-
-      // 如果使用者貼上的是 pobb.in 的一般網址，自動轉換成 embed 嵌入格式以獲得最佳顯示效果
-      if (targetUrl.includes('pobb.in')) {
-        targetUrl = targetUrl.replace(/\/$/, ''); // 移除結尾斜線
-        if (!targetUrl.endsWith('/embed')) {
-          targetUrl += '/embed';
-        }
-      } else if (!targetUrl.startsWith('http')) {
-        // 如果是純代碼，引導使用者透過 pobb.in 轉貼或直接貼上網址
-        container.innerHTML = `<div class="placeholder" style="color: #f0a334;">
-          為避免瀏覽器端解析授權限制，建議您先將 PoB 碼上傳至 <a href="https://pobb.in/" target="_blank" style="color: #58a6ff;">pobb.in</a>，<br>然後將產生的網址貼到上方即可完美顯示！
-        </div>`;
-        return;
-      }
-
-      container.innerHTML = `<iframe src="${targetUrl}"></iframe>`;
-    }
-  </script>
-
-</body>
-</html>
+      // 自動處理 pobb.in 網址
