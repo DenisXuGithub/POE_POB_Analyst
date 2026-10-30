@@ -71,19 +71,16 @@
       text-align: center;
       font-size: 16px;
       padding: 20px;
-      line-height: 1.6;
     }
-    a { color: #58a6ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
 
   <h2>Path of Building 線上解析檢視器</h2>
-  <p class="subtitle">請將 pobb.in 的網址（或包含 embed 的完整網址）貼入下方，即可完美載入！</p>
+  <p class="subtitle">請將 pobb.in 的 Embed 網址貼入下方即可完美載入！</p>
 
   <div class="search-box">
-    <input type="text" id="pobInput" placeholder="例如: https://pobb.in/xxxxx">
+    <input type="text" id="pobInput" placeholder="例如: https://pobb.in/xxxxx/embed">
     <button onclick="renderPoB()">載入分析</button>
   </div>
 
@@ -93,40 +90,16 @@
 
   <script>
     function renderPoB() {
-      const inputElem = document.getElementById('pobInput');
+      const inputVal = document.getElementById('pobInput').value.trim();
       const container = document.getElementById('viewerContainer');
-      
-      if (!inputElem) {
-        alert('找不到輸入框元件！');
-        return;
-      }
-
-      let inputVal = inputElem.value.trim();
 
       if (!inputVal) {
-        alert('請先輸入 pobb.in 的網址！');
+        alert('請先輸入網址！');
         return;
       }
 
-      // 如果使用者貼上的是純代碼而不是網址，給予提示
-      if (!inputVal.startsWith('http')) {
-        container.innerHTML = `<div class="placeholder" style="color: #f0a334;">
-          請先至 <a href="https://pobb.in/" target="_blank">pobb.in</a> 將您的代碼轉成網址，<br>再將該網址貼到上方輸入框中！
-        </div>`;
-        return;
-      }
-
-      // 自動轉換為 pobb.in 專用的 embed 嵌入格式
-      let targetUrl = inputVal;
-      if (targetUrl.includes('pobb.in')) {
-        targetUrl = targetUrl.replace(/\/$/, ''); // 移除結尾斜線
-        if (!targetUrl.endsWith('/embed')) {
-          targetUrl += '/embed';
-        }
-      }
-
-      // 嚴格寫入 iframe 進行渲染
-      container.innerHTML = `<iframe src="${targetUrl}" width="100%" height="100%" style="border:none;"></iframe>`;
+      // 直接將使用者輸入的網址塞進 iframe，不再自動加工修改
+      container.innerHTML = `<iframe src="${inputVal}"></iframe>`;
     }
   </script>
 
