@@ -80,28 +80,55 @@
 <body>
 
   <h2>Path of Building 線上解析檢視器</h2>
-  <p class="subtitle">請直接輸入 pobb.in 的網址（例如 https://pobb.in/xxxxx），即可完美載入完整面板與分析數據！</p>
+  <p class="subtitle">請將 pobb.in 的網址（或包含 embed 的完整網址）貼入下方，即可完美載入！</p>
 
   <div class="search-box">
-    <input type="text" id="pobInput" placeholder="請輸入 pobb.in 網址...">
+    <input type="text" id="pobInput" placeholder="例如: https://pobb.in/xxxxx">
     <button onclick="renderPoB()">載入分析</button>
   </div>
 
   <div class="display-frame" id="viewerContainer">
-    <div class="placeholder">
-      尚無資料。<br>
-      如果您手邊只有 PoB 匯出碼，建議先至 <a href="https://pobb.in/" target="_blank">pobb.in</a> 產生網址，再將網址貼入上方即可！
-    </div>
+    <div class="placeholder">尚無資料，請於上方輸入網址並點擊載入。</div>
   </div>
 
   <script>
     function renderPoB() {
-      let inputVal = document.getElementById('pobInput').value.trim();
+      const inputElem = document.getElementById('pobInput');
       const container = document.getElementById('viewerContainer');
-
-      if (!inputVal) {
-        alert('請先輸入有效的連結！');
+      
+      if (!inputElem) {
+        alert('找不到輸入框元件！');
         return;
       }
 
-      // 自動處理 pobb.in 網址
+      let inputVal = inputElem.value.trim();
+
+      if (!inputVal) {
+        alert('請先輸入 pobb.in 的網址！');
+        return;
+      }
+
+      // 如果使用者貼上的是純代碼而不是網址，給予提示
+      if (!inputVal.startsWith('http')) {
+        container.innerHTML = `<div class="placeholder" style="color: #f0a334;">
+          請先至 <a href="https://pobb.in/" target="_blank">pobb.in</a> 將您的代碼轉成網址，<br>再將該網址貼到上方輸入框中！
+        </div>`;
+        return;
+      }
+
+      // 自動轉換為 pobb.in 專用的 embed 嵌入格式
+      let targetUrl = inputVal;
+      if (targetUrl.includes('pobb.in')) {
+        targetUrl = targetUrl.replace(/\/$/, ''); // 移除結尾斜線
+        if (!targetUrl.endsWith('/embed')) {
+          targetUrl += '/embed';
+        }
+      }
+
+      // 嚴格寫入 iframe 進行渲染
+      container.innerHTML = `<iframe src="${targetUrl}" width="100%" height="100%" style="border:none;"></iframe>`;
+    }
+  </script>
+
+</body>
+</html>
