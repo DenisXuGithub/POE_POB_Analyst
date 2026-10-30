@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 角色深度分析報告</title>
+  <title>PoB 真‧動態自動解析器</title>
+  <!-- 載入 pako.js 用於前端解壓縮 PoB zlib 代碼 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -27,20 +29,18 @@
     }
     textarea {
       width: 100%;
-      height: 100px;
+      height: 120px;
       padding: 12px 16px;
       background-color: #161b22;
       border: 1px solid #30363d;
       border-radius: 6px;
       color: #c9d1d9;
-      font-size: 14px;
+      font-size: 13px;
       resize: vertical;
       box-sizing: border-box;
+      font-family: monospace;
     }
-    textarea:focus {
-      border-color: #f0a334;
-      outline: none;
-    }
+    textarea:focus { border-color: #f0a334; outline: none; }
     button {
       padding: 12px 24px;
       background-color: #238636;
@@ -50,7 +50,6 @@
       font-weight: bold;
       cursor: pointer;
       font-size: 15px;
-      transition: background 0.2s;
       align-self: flex-end;
     }
     button:hover { background-color: #2ea043; }
@@ -69,63 +68,120 @@
     .analysis-result h4 { color: #f0a334; margin-top: 20px; margin-bottom: 8px; }
     .analysis-result ul { padding-left: 20px; margin-top: 5px; }
     .analysis-result li { margin-bottom: 8px; }
-    .loading { color: #f0a334; text-align: center; font-size: 16px; margin-top: 20px; display: none; }
+    .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 8px; border-radius: 4px; font-size: 13px; color: #f0a334; }
   </style>
 </head>
 <body>
 
-  <h2>Path of Building 角色深度分析儀表板</h2>
-  <p class="subtitle">貼上您的 PoB 匯出碼，直接在網頁上生成結構化的詳細健檢與改進報告！</p>
+  <h2>Path of Building 自動動態解析器</h2>
+  <p class="subtitle">貼上任何 PoB 碼，網頁將自動解壓 XML 數據並生成專屬分析！</p>
 
   <div class="input-container">
-    <textarea id="pobCodeInput" placeholder="請在此貼上您的 PoB 匯出碼 (eJz...)"></textarea>
-    <button onclick="generateAnalysis()">執行深度分析</button>
+    <textarea id="pobCodeInput" placeholder="在此貼上任何 PoB 匯出碼 (eJz...)"></textarea>
+    <button onclick="parseAndAnalyzePoB()">解析此 PoB</button>
   </div>
 
-  <div class="loading" id="loadingText">正在解析機體數據與裝備配置，請稍候...</div>
-
   <div class="analysis-result" id="resultBox">
-    <h3>機體深度健檢報告：96 級 銳眼 (Deadeye) 龍捲射擊</h3>
-    
-    <h4>一、 核心天賦與屬性陷阱檢視</h4>
-    <ul>
-      <li><strong>智力極度匱乏：</strong> 由於天賦盤集中在右下角純敏捷區，無法支撐高智力需求的藍色輔助寶石。技能串與輔助寶石等級必須嚴格控管，避免因屬性不足導致紅字卡死。</li>
-      <li><strong>昇華與清圖定位：</strong> 充分利用銳眼的「遠射」機制，保持遠距離輸出，並靠著高機動性拉開與敵人的身位。</li>
-    </ul>
-
-    <h4>二、 裝備體檢與致命缺陷</h4>
-    <ul>
-      <li><strong>箭袋檢視：</strong> 若使用如雙鋒箭袋但缺乏「附加額外箭矢」或生命過低（例如僅 +30 左右），會直接導致清圖傷害刮痧與生存崩盤，建議優先更換具備額外箭矢與高生命的稀有箭袋。</li>
-      <li><strong>防具與防禦頭盔：</strong> 避免使用無法提供必要生命與法術壓抑的過渡傳奇裝備。頭盔與胸甲應當以撐高最大生命、雙抗性以及 100% 法術壓抑為首要目標。</li>
-    </ul>
-
-    <h4>三、 生存與續航硬指標</h4>
-    <ul>
-      <li><strong>法術壓抑與血量：</strong> 96 級紅圖拓荒的基本底線為生命總池達 4,200 - 4,500 以上，且法術壓抑必須達到滿點 100%。</li>
-      <li><strong>魔力與偷取機制：</strong> 避免盲目依賴物理傷害偷取魔力（若武器為純元素點傷會完全無效）。應檢視魔力消耗，必要時透過天賦、智慧或特定寶石調整解決高速開火的乾涸問題。</li>
-    </ul>
+    <h3 id="buildTitle">解析報告</h3>
+    <div id="buildMeta"></div>
+    <hr style="border: 0; border-top: 1px solid #30363d; margin: 15px 0;">
+    <div id="buildAnalysis"></div>
   </div>
 
   <script>
-    function generateAnalysis() {
-      const code = document.getElementById('pobCodeInput').value.trim();
-      const loading = document.getElementById('loadingText');
+    function parseAndAnalyzePoB() {
+      const rawCode = document.getElementById('pobCodeInput').value.trim();
       const resultBox = document.getElementById('resultBox');
 
-      if (!code) {
-        alert('請先輸入 PoB 匯出碼！');
+      if (!rawCode) {
+        alert('請先輸入 PoB 代碼！');
         return;
       }
 
-      // 顯示讀取動畫
-      loading.style.display = 'block';
-      resultBox.style.display = 'none';
+      try {
+        // 1. 將 URL-Safe Base64 轉為標準 Base64
+        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) base64 += '=';
 
-      // 模擬解析延遲後顯示結構化報告
-      setTimeout(() => {
-        loading.style.display = 'none';
+        // 2. Base64 解碼為 Uint8Array
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        // 3. 使用 pako.js 進行 zlib 解壓縮
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+
+        // 4. 解析回傳的 XML
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
+
+        // 提取 XML 中的實際角色數據
+        const buildNode = xmlDoc.querySelector("Build");
+        const className = buildNode ? buildNode.getAttribute("className") : "未知職業";
+        const ascendClassName = buildNode ? buildNode.getAttribute("ascendClassName") : "";
+        const level = buildNode ? buildNode.getAttribute("level") : "未知";
+
+        // 提取技能數據
+        const skillGems = Array.from(xmlDoc.querySelectorAll("Gem"))
+          .map(gem => gem.getAttribute("nameSpec"))
+          .filter(Boolean);
+
+        // 渲染專屬解析報告
+        document.getElementById('buildTitle').innerText = `機體即時解析：${level} 級 ${className} (${ascendClassName || '未昇華'})`;
+        
+        document.getElementById('buildMeta').innerHTML = `
+          <span class="badge">主職業：${className}</span>
+          <span class="badge">昇華：${ascendClassName || '無'}</span>
+          <span class="badge">角色等級：${level}</span>
+          <span class="badge">偵測寶石數量：${skillGems.length} 個</span>
+        `;
+
+        // 根據解開的職業進行動態條件分析
+        let dynamicAnalysis = '';
+
+        if (className === 'Witch' || className === '女巫') {
+          dynamicAnalysis = `
+            <h4>一、 女巫 (Witch) 核心機制診斷</h4>
+            <ul>
+              <li><strong>屬性導向：</strong> 智力為基礎主屬性。需確認能量護盾 (ES) 與魔力保留是否足夠。</li>
+              <li><strong>流派方向：</strong> 若為法術或元素異常流派，需注意元素穿透與施法速度；若為召喚流，需檢視召喚物傷害與生存天賦。</li>
+            </ul>
+            <h4>二、 偵測到的核心技能串</h4>
+            <ul>
+              <li>${skillGems.length > 0 ? skillGems.slice(0, 6).join(' + ') : '未偵測到主要技能串'}</li>
+            </ul>
+          `;
+        } else if (className === 'Ranger' || className === '遊俠') {
+          dynamicAnalysis = `
+            <h4>一、 遊俠 (Ranger) 核心機制診斷</h4>
+            <ul>
+              <li><strong>智力匱乏警訊：</strong> 右下角敏捷盤缺乏智力，必須嚴格控管藍色寶石等級，避免屬性不足卡死。</li>
+              <li><strong>生存硬指標：</strong> 必須透過防具與天賦將法術壓抑撐滿至 100%，並搭配優雅光環維持高閃避。</li>
+            </ul>
+            <h4>二、 偵測到的核心技能串</h4>
+            <ul>
+              <li>${skillGems.length > 0 ? skillGems.slice(0, 6).join(' + ') : '未偵測到主要技能串'}</li>
+            </ul>
+          `;
+        } else {
+          dynamicAnalysis = `
+            <h4>一、 機體基礎診斷 (${className})</h4>
+            <ul>
+              <li>已成功解開此 ${className} 之 XML 數據，等級為 ${level} 級。</li>
+              <li>主要技能配置包括：${skillGems.slice(0, 5).join(', ')}...</li>
+            </ul>
+          `;
+        }
+
+        document.getElementById('buildAnalysis').innerHTML = dynamicAnalysis;
         resultBox.style.display = 'block';
-      }, 800);
+
+      } catch (err) {
+        console.error(err);
+        alert('PoB 解碼失敗！請確認貼上的代碼是否完整且未夾帶多餘字元。');
+      }
     }
   </script>
 
