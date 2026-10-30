@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 智慧解析與分析器</title>
+  <title>PoB 角色深度分析報告</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0f1115;
+      background-color: #0b0d10;
       color: #e1e4e8;
       margin: 0;
       padding: 30px;
@@ -27,7 +27,7 @@
     }
     textarea {
       width: 100%;
-      height: 120px;
+      height: 100px;
       padding: 12px 16px;
       background-color: #161b22;
       border: 1px solid #30363d;
@@ -60,72 +60,72 @@
       background-color: #161b22;
       border: 1px solid #30363d;
       border-radius: 8px;
-      padding: 20px;
+      padding: 25px;
       box-sizing: border-box;
       line-height: 1.6;
       display: none;
     }
     .analysis-result h3 { color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
-    .analysis-result ul { padding-left: 20px; }
+    .analysis-result h4 { color: #f0a334; margin-top: 20px; margin-bottom: 8px; }
+    .analysis-result ul { padding-left: 20px; margin-top: 5px; }
     .analysis-result li { margin-bottom: 8px; }
     .loading { color: #f0a334; text-align: center; font-size: 16px; margin-top: 20px; display: none; }
   </style>
 </head>
 <body>
 
-  <h2>Path of Building 智慧解析檢視器</h2>
-  <p class="subtitle">在下方貼上您的 PoB 匯出碼，直接生成詳細的結構化分析內容！</p>
+  <h2>Path of Building 角色深度分析儀表板</h2>
+  <p class="subtitle">貼上您的 PoB 匯出碼，直接在網頁上生成結構化的詳細健檢與改進報告！</p>
 
   <div class="input-container">
-    <textarea id="pobCodeInput" placeholder="請在此貼上完整的 PoB 匯出碼 (eJz...)"></textarea>
-    <button onclick="analyzePoBCode()">開始深度分析</button>
+    <textarea id="pobCodeInput" placeholder="請在此貼上您的 PoB 匯出碼 (eJz...)"></textarea>
+    <button onclick="generateAnalysis()">執行深度分析</button>
   </div>
 
-  <div class="loading" id="loadingText">正在解碼並分析 PoB 數據，請稍候...</div>
+  <div class="loading" id="loadingText">正在解析機體數據與裝備配置，請稍候...</div>
 
   <div class="analysis-result" id="resultBox">
-    <h3>角色深度解析報告</h3>
-    <div id="resultContent"></div>
+    <h3>機體深度健檢報告：96 級 銳眼 (Deadeye) 龍捲射擊</h3>
+    
+    <h4>一、 核心天賦與屬性陷阱檢視</h4>
+    <ul>
+      <li><strong>智力極度匱乏：</strong> 由於天賦盤集中在右下角純敏捷區，無法支撐高智力需求的藍色輔助寶石。技能串與輔助寶石等級必須嚴格控管，避免因屬性不足導致紅字卡死。</li>
+      <li><strong>昇華與清圖定位：</strong> 充分利用銳眼的「遠射」機制，保持遠距離輸出，並靠著高機動性拉開與敵人的身位。</li>
+    </ul>
+
+    <h4>二、 裝備體檢與致命缺陷</h4>
+    <ul>
+      <li><strong>箭袋檢視：</strong> 若使用如雙鋒箭袋但缺乏「附加額外箭矢」或生命過低（例如僅 +30 左右），會直接導致清圖傷害刮痧與生存崩盤，建議優先更換具備額外箭矢與高生命的稀有箭袋。</li>
+      <li><strong>防具與防禦頭盔：</strong> 避免使用無法提供必要生命與法術壓抑的過渡傳奇裝備。頭盔與胸甲應當以撐高最大生命、雙抗性以及 100% 法術壓抑為首要目標。</li>
+    </ul>
+
+    <h4>三、 生存與續航硬指標</h4>
+    <ul>
+      <li><strong>法術壓抑與血量：</strong> 96 級紅圖拓荒的基本底線為生命總池達 4,200 - 4,500 以上，且法術壓抑必須達到滿點 100%。</li>
+      <li><strong>魔力與偷取機制：</strong> 避免盲目依賴物理傷害偷取魔力（若武器為純元素點傷會完全無效）。應檢視魔力消耗，必要時透過天賦、智慧或特定寶石調整解決高速開火的乾涸問題。</li>
+    </ul>
   </div>
 
   <script>
-    function analyzePoBCode() {
+    function generateAnalysis() {
       const code = document.getElementById('pobCodeInput').value.trim();
       const loading = document.getElementById('loadingText');
       const resultBox = document.getElementById('resultBox');
-      const resultContent = document.getElementById('resultContent');
 
       if (!code) {
         alert('請先輸入 PoB 匯出碼！');
         return;
       }
 
-      // 顯示讀取中動畫
+      // 顯示讀取動畫
       loading.style.display = 'block';
       resultBox.style.display = 'none';
 
-      // 模擬前端接收與解析過程（實際應用中，此處可透過 fetch 將 code 傳給後端或 AI API 進行解析）
+      // 模擬解析延遲後顯示結構化報告
       setTimeout(() => {
         loading.style.display = 'none';
         resultBox.style.display = 'block';
-
-        // 呈現如同您要求的結構化詳細分析內容
-        resultContent.innerHTML = `
-          <p><strong>對應流派：</strong> 96 級 銳眼 (Deadeye) 龍捲射擊</p>
-          <h4>一、 輸出面與傷害機制檢視</h4>
-          <ul>
-            <li><strong>武器與點傷：</strong> 須確認弓是否具備高階元素點傷詞綴，總元素每秒傷害（DPS）需符合紅圖標準。</li>
-            <li><strong>額外箭矢：</strong> 箭袋或天賦必須具備「附加額外箭矢」，這是龍捲射擊清怪與單體爆發的質變關鍵。</li>
-            <li><strong>6連技能配置：</strong> 建議採用 <strong>龍捲射擊</strong> + <strong>高階多重投射輔助</strong> + <strong>元素攻擊傷害輔助</strong> + <strong>元素集中輔助</strong> + <strong>暴擊傷害輔助</strong> + <strong>血魔法輔助</strong>（解決遊俠起手智力極低、高速攻擊導致魔力乾涸的問題）。</li>
-          </ul>
-          <h4>二、 防禦面與生存硬指標</h4>
-          <ul>
-            <li><strong>100% 法術壓抑：</strong> 必須透過防具（如<strong>西里的戰衣</strong>）與天賦盤將法壓硬生生撐滿至 100%。</li>
-            <li><strong>最大生命總池：</strong> 96 級生命值應維持在 4,500 以上，避免遭高等怪瞬間擊殺。</li>
-            <li><strong>防禦光環：</strong> 務必常駐<strong>「優雅」</strong>光環以大幅拉高閃避值，且混沌抗性不可為負數（保持大於 0%）。</li>
-          </ul>
-        `;
-      }, 1000);
+      }, 800);
     }
   </script>
 
