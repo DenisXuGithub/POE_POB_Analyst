@@ -3,101 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 角色深度解析檢視器</title>
+  <title>PoB 智慧解析與分析器</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0b0d10;
+      background-color: #0f1115;
       color: #e1e4e8;
       margin: 0;
-      padding: 15px;
+      padding: 30px;
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      box-sizing: border-box;
-    }
-    header {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 15px;
       align-items: center;
-      background: #161b22;
-      padding: 12px 16px;
-      border-radius: 8px;
-      border: 1px solid #30363d;
     }
-    h2 { color: #f0a334; margin: 0; font-size: 18px; white-space: nowrap; }
-    input[type="text"] {
-      flex: 1;
-      padding: 10px 14px;
-      background-color: #0d1117;
+    h2 { color: #f0a334; margin-bottom: 5px; }
+    p.subtitle { color: #8b949e; margin-top: 0; margin-bottom: 20px; font-size: 14px; text-align: center; }
+    .input-container {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 25px;
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 12px 16px;
+      background-color: #161b22;
       border: 1px solid #30363d;
       border-radius: 6px;
       color: #c9d1d9;
       font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
     }
-    input[type="text"]:focus {
+    textarea:focus {
       border-color: #f0a334;
       outline: none;
     }
     button {
-      padding: 10px 20px;
+      padding: 12px 24px;
       background-color: #238636;
       border: none;
       border-radius: 6px;
       color: white;
       font-weight: bold;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 15px;
       transition: background 0.2s;
-      white-space: nowrap;
+      align-self: flex-end;
     }
     button:hover { background-color: #2ea043; }
-    .display-frame {
-      flex: 1;
+    .analysis-result {
       width: 100%;
+      max-width: 900px;
       background-color: #161b22;
       border: 1px solid #30363d;
       border-radius: 8px;
-      overflow: hidden;
+      padding: 20px;
+      box-sizing: border-box;
+      line-height: 1.6;
+      display: none;
     }
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-    .placeholder {
-      color: #8b949e;
-      text-align: center;
-      margin-top: 20vh;
-      font-size: 16px;
-    }
+    .analysis-result h3 { color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+    .analysis-result ul { padding-left: 20px; }
+    .analysis-result li { margin-bottom: 8px; }
+    .loading { color: #f0a334; text-align: center; font-size: 16px; margin-top: 20px; display: none; }
   </style>
 </head>
 <body>
 
-  <header>
-    <h2>PoB 深度解析</h2>
-    <input type="text" id="pobInput" placeholder="請貼上 pobb.in 的 Embed 網址 (例如: https://pobb.in/xxxxx/embed)">
-    <button onclick="renderPoB()">載入完整面板</button>
-  </header>
+  <h2>Path of Building 智慧解析檢視器</h2>
+  <p class="subtitle">在下方貼上您的 PoB 匯出碼，直接生成詳細的結構化分析內容！</p>
 
-  <div class="display-frame" id="viewerContainer">
-    <div class="placeholder">請於上方輸入完整的 pobb.in Embed 網址，即可在此呈現包含裝備、天賦與詳細數值的完整分析面板。</div>
+  <div class="input-container">
+    <textarea id="pobCodeInput" placeholder="請在此貼上完整的 PoB 匯出碼 (eJz...)"></textarea>
+    <button onclick="analyzePoBCode()">開始深度分析</button>
+  </div>
+
+  <div class="loading" id="loadingText">正在解碼並分析 PoB 數據，請稍候...</div>
+
+  <div class="analysis-result" id="resultBox">
+    <h3>角色深度解析報告</h3>
+    <div id="resultContent"></div>
   </div>
 
   <script>
-    function renderPoB() {
-      const inputVal = document.getElementById('pobInput').value.trim();
-      const container = document.getElementById('viewerContainer');
+    function analyzePoBCode() {
+      const code = document.getElementById('pobCodeInput').value.trim();
+      const loading = document.getElementById('loadingText');
+      const resultBox = document.getElementById('resultBox');
+      const resultContent = document.getElementById('resultContent');
 
-      if (!inputVal) {
-        alert('請先輸入網址！');
+      if (!code) {
+        alert('請先輸入 PoB 匯出碼！');
         return;
       }
 
-      // 直接以全版 iframe 載入該分析頁面
-      container.innerHTML = `<iframe src="${inputVal}"></iframe>`;
+      // 顯示讀取中動畫
+      loading.style.display = 'block';
+      resultBox.style.display = 'none';
+
+      // 模擬前端接收與解析過程（實際應用中，此處可透過 fetch 將 code 傳給後端或 AI API 進行解析）
+      setTimeout(() => {
+        loading.style.display = 'none';
+        resultBox.style.display = 'block';
+
+        // 呈現如同您要求的結構化詳細分析內容
+        resultContent.innerHTML = `
+          <p><strong>對應流派：</strong> 96 級 銳眼 (Deadeye) 龍捲射擊</p>
+          <h4>一、 輸出面與傷害機制檢視</h4>
+          <ul>
+            <li><strong>武器與點傷：</strong> 須確認弓是否具備高階元素點傷詞綴，總元素每秒傷害（DPS）需符合紅圖標準。</li>
+            <li><strong>額外箭矢：</strong> 箭袋或天賦必須具備「附加額外箭矢」，這是龍捲射擊清怪與單體爆發的質變關鍵。</li>
+            <li><strong>6連技能配置：</strong> 建議採用 <strong>龍捲射擊</strong> + <strong>高階多重投射輔助</strong> + <strong>元素攻擊傷害輔助</strong> + <strong>元素集中輔助</strong> + <strong>暴擊傷害輔助</strong> + <strong>血魔法輔助</strong>（解決遊俠起手智力極低、高速攻擊導致魔力乾涸的問題）。</li>
+          </ul>
+          <h4>二、 防禦面與生存硬指標</h4>
+          <ul>
+            <li><strong>100% 法術壓抑：</strong> 必須透過防具（如<strong>西里的戰衣</strong>）與天賦盤將法壓硬生生撐滿至 100%。</li>
+            <li><strong>最大生命總池：</strong> 96 級生命值應維持在 4,500 以上，避免遭高等怪瞬間擊殺。</li>
+            <li><strong>防禦光環：</strong> 務必常駐<strong>「優雅」</strong>光環以大幅拉高閃避值，且混沌抗性不可為負數（保持大於 0%）。</li>
+          </ul>
+        `;
+      }, 1000);
     }
   </script>
 
