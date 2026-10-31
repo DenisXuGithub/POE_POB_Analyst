@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 萬用智慧分析儀表板</title>
-  <!-- 載入 pako.js 用於前端解壓縮 zlib PoB 代碼 -->
+  <title>PoB 全數據深度剖析儀表板</title>
+  <!-- 載入 pako.js 進行前端 zlib 解壓縮 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <style>
     body {
@@ -21,7 +21,7 @@
     p.subtitle { color: #8b949e; margin-top: 0; margin-bottom: 20px; font-size: 14px; text-align: center; }
     .input-container {
       width: 100%;
-      max-width: 950px;
+      max-width: 1000px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -29,7 +29,7 @@
     }
     textarea {
       width: 100%;
-      height: 110px;
+      height: 120px;
       padding: 12px 16px;
       background-color: #161b22;
       border: 1px solid #30363d;
@@ -56,7 +56,7 @@
     button:hover { background-color: #2ea043; }
     .analysis-result {
       width: 100%;
-      max-width: 950px;
+      max-width: 1000px;
       background-color: #161b22;
       border: 1px solid #30363d;
       border-radius: 8px;
@@ -67,28 +67,51 @@
     }
     .analysis-result h3 { color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
     .analysis-result h4 { color: #f0a334; margin-top: 22px; margin-bottom: 8px; border-left: 3px solid #f0a334; padding-left: 8px; }
-    .analysis-result ul { padding-left: 20px; margin-top: 5px; }
-    .analysis-result li { margin-bottom: 8px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 15px 0;
+    }
+    .stat-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .stat-card .label { font-size: 12px; color: #8b949e; }
+    .stat-card .value { font-size: 18px; font-weight: bold; color: #f0a334; margin-top: 4px; }
+    .stat-card .value.alert { color: #f85149; }
+    .stat-card .value.safe { color: #3fb950; }
+    ul { padding-left: 20px; margin-top: 5px; }
+    li { margin-bottom: 6px; }
     .badge-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
     .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 10px; border-radius: 4px; font-size: 13px; color: #f0a334; }
-    .badge.highlight { color: #58a6ff; border-color: #1f6feb; }
-    .warn-box { background: rgba(240, 163, 52, 0.1); border-left: 4px solid #f0a334; padding: 10px 15px; margin: 10px 0; border-radius: 0 4px 4px 0; }
   </style>
 </head>
 <body>
 
-  <h2>Path of Building 前端動態分析儀表板</h2>
-  <p class="subtitle">貼上任意 PoB 匯出碼，即時解碼 XML 並生成全方位機體診斷報告</p>
+  <h2>PoB 全數據深度剖析儀表板</h2>
+  <p class="subtitle">貼上任意 PoB 代碼，前端自動解碼 XML 並對所有核心數字進行量化審查</p>
 
   <div class="input-container">
     <textarea id="pobCodeInput" placeholder="在此貼上任何 PoB 匯出碼 (eJz...)"></textarea>
-    <button onclick="parseAndAnalyzePoB()">執行動態分析</button>
+    <button onclick="parseAndAnalyzePoB()">執行全數據深度剖析</button>
   </div>
 
   <div class="analysis-result" id="resultBox">
     <h3 id="buildTitle">角色分析報告</h3>
     <div class="badge-group" id="buildMeta"></div>
-    <div id="buildAnalysis"></div>
+    
+    <h4>一、 基礎屬性與面板數字檢視</h4>
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <h4>二、 數字量化健康度診斷</h4>
+    <div id="numericDiagnosis"></div>
+
+    <h4>三、 技能寶石與配置明細</h4>
+    <div id="gemDetails"></div>
   </div>
 
   <script>
@@ -102,119 +125,84 @@
       }
 
       try {
-        // 1. Base64 格式修正
+        // 1. Base64 格式轉換與解碼
         let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
         while (base64.length % 4 !== 0) base64 += '=';
 
-        // 2. 解碼 Base64
         const binaryStr = atob(base64);
         const bytes = new Uint8Array(binaryStr.length);
         for (let i = 0; i < binaryStr.length; i++) {
           bytes[i] = binaryStr.charCodeAt(i);
         }
 
-        // 3. zlib 解壓縮 (pako.js)
+        // 2. pako zlib 解壓縮
         const decompressed = pako.inflate(bytes, { to: 'string' });
 
-        // 4. 解析 XML DOM
+        // 3. XML 解析
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(decompressed, "text/xml");
 
-        // --- 提取基礎屬性 ---
+        // --- 提取核心數據節點 ---
         const buildNode = xmlDoc.querySelector("Build");
         const className = buildNode ? (buildNode.getAttribute("className") || "未知職業") : "未知職業";
         const ascendName = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
         const level = buildNode ? (buildNode.getAttribute("level") || "未知") : "未知";
 
-        // 提取 Player 屬性（若有）
-        const strAttr = buildNode ? (parseInt(buildNode.getAttribute("targetStrength")) || 0) : 0;
-        const dexAttr = buildNode ? (parseInt(buildNode.getAttribute("targetDexterity")) || 0) : 0;
-        const intAttr = buildNode ? (parseInt(buildNode.getAttribute("targetIntelligence")) || 0) : 0;
-
-        // --- 提取技能寶石 ---
-        const skillGems = Array.from(xmlDoc.querySelectorAll("Gem"))
-          .map(gem => gem.getAttribute("nameSpec"))
-          .filter(Boolean);
-
-        // 去重與抓取前 8 個關鍵技能
-        const uniqueGems = [...new Set(skillGems)];
-
-        // --- 提取傳奇裝備名稱 ---
-        const items = Array.from(xmlDoc.querySelectorAll("Item"))
-          .map(item => item.textContent)
-          .filter(text => text.includes("Rarity: UNIQUE"));
-        const uniqueItemNames = items.map(text => {
-          const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-          return lines.length > 1 ? lines[1] : null;
-        }).filter(Boolean);
-
-        // --- 渲染 UI 頂部標籤 ---
-        document.getElementById('buildTitle').innerText = `機體深度解析：${level} 級 ${className} (${ascendName})`;
+        // 嘗試從 Stat 節點或屬性抓取數值
+        let life = 0, es = 0, str = 0, dex = 0, int = 0;
         
+        // 抓取 PlayerStat 裡的數值（PoB 常見格式）
+        const stats = xmlDoc.querySelectorAll("PlayerStat");
+        stats.forEach(stat => {
+          const statName = stat.getAttribute("stat");
+          const statVal = parseFloat(stat.getAttribute("value")) || 0;
+          if (statName === "Life") life = Math.round(statVal);
+          if (statName === "EnergyShield") es = Math.round(statVal);
+          if (statName === "Str") str = Math.round(statVal);
+          if (statName === "Dex") dex = Math.round(statVal);
+          if (statName === "Int") int = Math.round(statVal);
+        });
+
+        // 抓取技能寶石
+        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
+          name: gem.getAttribute("nameSpec"),
+          level: gem.getAttribute("level"),
+          enabled: gem.getAttribute("enabled") !== "false"
+        })).filter(g => g.name);
+
+        // --- 渲染頂部標籤 ---
+        document.getElementById('buildTitle').innerText = `全數據解析：${level} 級 ${className} (${ascendName})`;
         document.getElementById('buildMeta').innerHTML = `
-          <span class="badge highlight">主職業：${className}</span>
-          <span class="badge highlight">昇華：${ascendName}</span>
+          <span class="badge">職業：${className}</span>
+          <span class="badge">昇華：${ascendName}</span>
           <span class="badge">等級：${level}</span>
-          <span class="badge">偵測裝備/寶石：${uniqueGems.length} 個技能</span>
+          <span class="badge">有效寶石數：${gems.length}</span>
         `;
 
-        // --- 生成全方位動態分析內文 ---
-        let content = '';
+        // --- 渲染數據方格 (Stats Grid) ---
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="label">最大生命 (Life)</div>
+            <div class="value ${life < 4000 && level > 85 ? 'alert' : 'safe'}">${life}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">能量護盾 (ES)</div>
+            <div class="value">${es}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">力量 (Str)</div>
+            <div class="value">${str}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">敏捷 (Dex)</div>
+            <div class="value">${dex}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">智力 (Int)</div>
+            <div class="value ${int < 100 ? 'alert' : 'safe'}">${int}</div>
+          </div>
+        `;
 
-        // 1. 屬性與門檻診斷
-        content += `<h4>一、 基礎屬性與門檻診斷</h4><ul>`;
-        if (className === 'Ranger' || className === '游侠' || className === '遊俠') {
-          content += `<li><strong>智力陷阱預警：</strong> 遊俠右下角天賦盤極度缺乏智力。若配置高階藍色輔助寶石，請確認裝備或天賦是否有補足智力缺口，避免寶石紅字卡死。</li>`;
-          content += `<li><strong>主要屬性對應：</strong> 以高敏捷為主，能輕鬆提供極高命中率與閃避基礎。</li>`;
-        } else if (className === 'Witch' || className === '女巫') {
-          content += `<li><strong>智力與能量護盾：</strong> 起手具備高智力優勢，能輕鬆滿足所有藍色法術/召喚寶石需求。應注意力量/敏捷次要屬性是否滿足防具要求。</li>`;
-        } else if (className === 'Templar' || className === '聖堂武僧') {
-          content += `<li><strong>力智雙修型態：</strong> 專注於力量與智力平衡，能同時支援高階法術與防衛光環。</li>`;
-        } else {
-          content += `<li><strong>屬性配置：</strong> 當前職業為 ${className}，請注意主要輔助寶石的屬性需求是否與天賦走向相符。</li>`;
-        }
-        content += `</ul>`;
-
-        // 2. 技能與連線檢視
-        content += `<h4>二、 核心技能寶石配置檢視</h4>`;
-        if (uniqueGems.length > 0) {
-          content += `<p>解碼出之主要寶石清單：</p><ul>`;
-          uniqueGems.slice(0, 8).forEach(gem => {
-            content += `<li><strong>${gem}</strong></li>`;
-          });
-          content += `</ul>`;
-        } else {
-          content += `<div class="warn-box">未在 PoB 中偵測到已安裝之技能寶石，請確認是否已在 PoB 的 Skills 頁面中設置寶石串。</div>`;
-        }
-
-        // 3. 裝備與核心傳奇
-        content += `<h4>三、 偵測到的核心傳奇裝備</h4>`;
-        if (uniqueItemNames.length > 0) {
-          content += `<ul>`;
-          [...new Set(uniqueItemNames)].slice(0, 5).forEach(itemName => {
-            content += `<li>${itemName}</li>`;
-          });
-          content += `</ul>`;
-        } else {
-          content += `<p>未偵測到特殊傳奇裝備或全數採用黃字稀有裝備。</p>`;
-        }
-
-        // 4. 生存硬指標建議
-        content += `<h4>四、 機體通用生存與改進建議</h4><ul>`;
-        content += `<li><strong>抗性門檻：</strong> 進入異界紅圖後，三大元素抗性必須強制達標 75%，混沌抗性建議保持在 0% 以上。</li>`;
-        content += `<li><strong>有效血池：</strong> ${level} 級機體應具備相對應的生命總池 (建議 4,000+) 或能量護盾 (ES) 防禦機制。</li>`;
-        content += `<li><strong>防禦層建構：</strong> 請確認是否已配置至少一種核心防禦光環（如：優雅、堅定或護衛）。</li>`;
-        content += `</ul>`;
-
-        document.getElementById('buildAnalysis').innerHTML = content;
-        resultBox.style.display = 'block';
-
-      } catch (err) {
-        console.error(err);
-        alert('PoB 解碼失敗！請確認貼上的代碼是否完整（應為 Base64 壓縮字串）。');
-      }
-    }
-  </script>
-
-</body>
-</html>
+        // --- 數字量化健康度診斷 ---
+        let diagHTML = `<ul>`;
+        if (level > 85)
