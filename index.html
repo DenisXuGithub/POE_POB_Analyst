@@ -3,115 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 全數據深度分析儀表板</title>
-  <!-- 載入 pako.js 進行前端 zlib 解壓縮 -->
+  <title>PoB 前端動態解析器</title>
+  <!-- 載入 pako.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0d1117;
-      color: #c9d1d9;
-      margin: 0;
-      padding: 30px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    h2 { color: #f0a334; margin-bottom: 5px; }
-    p.subtitle { color: #8b949e; margin-top: 0; margin-bottom: 20px; font-size: 14px; text-align: center; }
-    .input-container {
-      width: 100%;
-      max-width: 1000px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-bottom: 25px;
-    }
-    textarea {
-      width: 100%;
-      height: 120px;
-      padding: 12px 16px;
-      background-color: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      color: #e1e4e8;
-      font-size: 13px;
-      resize: vertical;
-      box-sizing: border-box;
-      font-family: monospace;
-    }
-    textarea:focus { border-color: #f0a334; outline: none; }
-    button {
-      padding: 12px 24px;
-      background-color: #238636;
-      border: none;
-      border-radius: 6px;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-      font-size: 15px;
-      align-self: flex-end;
-      transition: background 0.2s;
-    }
-    button:hover { background-color: #2ea043; }
-    .analysis-result {
-      width: 100%;
-      max-width: 1000px;
-      background-color: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 25px;
-      box-sizing: border-box;
-      line-height: 1.6;
-      display: none;
-    }
-    .analysis-result h3 { color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
-    .analysis-result h4 { color: #f0a334; margin-top: 22px; margin-bottom: 8px; border-left: 3px solid #f0a334; padding-left: 8px; }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
-      margin: 15px 0;
-    }
-    .stat-card {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      padding: 12px;
-      border-radius: 6px;
-      text-align: center;
-    }
-    .stat-card .label { font-size: 12px; color: #8b949e; }
-    .stat-card .value { font-size: 18px; font-weight: bold; color: #f0a334; margin-top: 4px; }
-    .stat-card .value.alert { color: #f85149; }
-    .stat-card .value.safe { color: #3fb950; }
-    ul { padding-left: 20px; margin-top: 5px; }
-    li { margin-bottom: 6px; }
-    .badge-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
-    .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 10px; border-radius: 4px; font-size: 13px; color: #f0a334; }
+    body { font-family: sans-serif; background: #0d1117; color: #c9d1d9; padding: 30px; display: flex; flex-direction: column; align-items: center; }
+    textarea { width: 100%; max-width: 900px; height: 120px; background: #161b22; color: #fff; border: 1px solid #30363d; padding: 10px; border-radius: 6px; font-family: monospace; }
+    button { margin-top: 10px; padding: 10px 20px; background: #238636; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; align-self: flex-end; }
+    button:hover { background: #2ea043; }
+    .result { width: 100%; max-width: 900px; background: #161b22; border: 1px solid #30363d; padding: 20px; margin-top: 20px; border-radius: 6px; display: none; }
   </style>
 </head>
 <body>
 
-  <h2>PoB 全數值動態剖析儀表板</h2>
-  <p class="subtitle">貼上任意 PoB 代碼，前端自動解碼 XML 並對所有關鍵數字進行量化審查</p>
+  <h2>PoB 前端動態解析測試</h2>
+  <textarea id="pobCodeInput" placeholder="請在此貼上 PoB 匯出碼..."></textarea>
+  <button onclick="parseAndAnalyzePoB()">執行解析</button>
 
-  <div class="input-container">
-    <textarea id="pobCodeInput" placeholder="在此貼上任何 PoB 匯出碼 (eJz...)"></textarea>
-    <button onclick="parseAndAnalyzePoB()">執行全數據深度剖析</button>
-  </div>
-
-  <div class="analysis-result" id="resultBox">
-    <h3 id="buildTitle">角色分析報告</h3>
-    <div class="badge-group" id="buildMeta"></div>
-    
-    <h4>一、 面板核心數字監控 (Stats Grid)</h4>
-    <div class="stats-grid" id="statsGrid"></div>
-
-    <h4>二、 數字量化健康度診斷</h4>
-    <div id="numericDiagnosis"></div>
-
-    <h4>三、 技能寶石串連與等級明細</h4>
-    <div id="gemDetails"></div>
+  <div class="result" id="resultBox">
+    <h3 id="resTitle">解析結果</h3>
+    <div id="resContent"></div>
   </div>
 
   <script>
@@ -119,19 +30,48 @@
       const rawCode = document.getElementById('pobCodeInput').value.trim();
       const resultBox = document.getElementById('resultBox');
 
+      // 防呆檢查 1：檢查 pako 是否載入
       if (typeof pako === 'undefined') {
-        alert('錯誤：pako.js 壓縮庫未成功載入！');
+        alert('錯誤：pako.js 壓縮庫未成功載入，請檢查網路！');
         return;
       }
 
+      // 防呆檢查 2：檢查輸入框是否為空
       if (!rawCode) {
         alert('請先輸入 PoB 代碼！');
         return;
       }
 
       try {
-        // 1. Base64 格式修正與解碼
+        // Base64 轉換與 zlib 解壓
         let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
         while (base64.length % 4 !== 0) base64 += '=';
 
-        const binaryStr = atob(base
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
+
+        // 讀取基本資料
+        const buildNode = xmlDoc.querySelector("Build");
+        const className = buildNode ? (buildNode.getAttribute("className") || "未知") : "未知";
+        const level = buildNode ? (buildNode.getAttribute("level") || "0") : "0";
+
+        document.getElementById('resTitle').innerText = `解析成功：${level} 級 ${className}`;
+        document.getElementById('resContent').innerHTML = `<p>XML 結構已成功解開，職業為：<strong>${className}</strong>，等級：<strong>${level}</strong>。</p>`;
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        console.error("解析發生錯誤：", err);
+        alert('解析失敗！錯誤原因：' + err.message);
+      }
+    }
+  </script>
+
+</body>
+</html>
