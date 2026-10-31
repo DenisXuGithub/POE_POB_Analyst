@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 全數據深度剖析儀表板</title>
+  <title>PoB 全數據深度分析儀表板</title>
   <!-- 載入 pako.js 進行前端 zlib 解壓縮 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <style>
@@ -69,7 +69,7 @@
     .analysis-result h4 { color: #f0a334; margin-top: 22px; margin-bottom: 8px; border-left: 3px solid #f0a334; padding-left: 8px; }
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
       margin: 15px 0;
     }
@@ -92,8 +92,8 @@
 </head>
 <body>
 
-  <h2>PoB 全數據深度剖析儀表板</h2>
-  <p class="subtitle">貼上任意 PoB 代碼，前端自動解碼 XML 並對所有核心數字進行量化審查</p>
+  <h2>PoB 全數值動態剖析儀表板</h2>
+  <p class="subtitle">貼上任意 PoB 代碼，前端自動解碼 XML 並對所有關鍵數字進行量化審查</p>
 
   <div class="input-container">
     <textarea id="pobCodeInput" placeholder="在此貼上任何 PoB 匯出碼 (eJz...)"></textarea>
@@ -104,13 +104,13 @@
     <h3 id="buildTitle">角色分析報告</h3>
     <div class="badge-group" id="buildMeta"></div>
     
-    <h4>一、 基礎屬性與面板數字檢視</h4>
+    <h4>一、 面板核心數字監控 (Stats Grid)</h4>
     <div class="stats-grid" id="statsGrid"></div>
 
     <h4>二、 數字量化健康度診斷</h4>
     <div id="numericDiagnosis"></div>
 
-    <h4>三、 技能寶石與配置明細</h4>
+    <h4>三、 技能寶石串連與等級明細</h4>
     <div id="gemDetails"></div>
   </div>
 
@@ -125,84 +125,5 @@
       }
 
       try {
-        // 1. Base64 格式轉換與解碼
-        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
-        while (base64.length % 4 !== 0) base64 += '=';
-
-        const binaryStr = atob(base64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-
-        // 2. pako zlib 解壓縮
-        const decompressed = pako.inflate(bytes, { to: 'string' });
-
-        // 3. XML 解析
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
-
-        // --- 提取核心數據節點 ---
-        const buildNode = xmlDoc.querySelector("Build");
-        const className = buildNode ? (buildNode.getAttribute("className") || "未知職業") : "未知職業";
-        const ascendName = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
-        const level = buildNode ? (buildNode.getAttribute("level") || "未知") : "未知";
-
-        // 嘗試從 Stat 節點或屬性抓取數值
-        let life = 0, es = 0, str = 0, dex = 0, int = 0;
-        
-        // 抓取 PlayerStat 裡的數值（PoB 常見格式）
-        const stats = xmlDoc.querySelectorAll("PlayerStat");
-        stats.forEach(stat => {
-          const statName = stat.getAttribute("stat");
-          const statVal = parseFloat(stat.getAttribute("value")) || 0;
-          if (statName === "Life") life = Math.round(statVal);
-          if (statName === "EnergyShield") es = Math.round(statVal);
-          if (statName === "Str") str = Math.round(statVal);
-          if (statName === "Dex") dex = Math.round(statVal);
-          if (statName === "Int") int = Math.round(statVal);
-        });
-
-        // 抓取技能寶石
-        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
-          name: gem.getAttribute("nameSpec"),
-          level: gem.getAttribute("level"),
-          enabled: gem.getAttribute("enabled") !== "false"
-        })).filter(g => g.name);
-
-        // --- 渲染頂部標籤 ---
-        document.getElementById('buildTitle').innerText = `全數據解析：${level} 級 ${className} (${ascendName})`;
-        document.getElementById('buildMeta').innerHTML = `
-          <span class="badge">職業：${className}</span>
-          <span class="badge">昇華：${ascendName}</span>
-          <span class="badge">等級：${level}</span>
-          <span class="badge">有效寶石數：${gems.length}</span>
-        `;
-
-        // --- 渲染數據方格 (Stats Grid) ---
-        document.getElementById('statsGrid').innerHTML = `
-          <div class="stat-card">
-            <div class="label">最大生命 (Life)</div>
-            <div class="value ${life < 4000 && level > 85 ? 'alert' : 'safe'}">${life}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">能量護盾 (ES)</div>
-            <div class="value">${es}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">力量 (Str)</div>
-            <div class="value">${str}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">敏捷 (Dex)</div>
-            <div class="value">${dex}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">智力 (Int)</div>
-            <div class="value ${int < 100 ? 'alert' : 'safe'}">${int}</div>
-          </div>
-        `;
-
-        // --- 數字量化健康度診斷 ---
-        let diagHTML = `<ul>`;
-        if (level > 85)
+        // 1. URL-Safe Base64 格式修正與解碼
+        let base64 = rawCode.
