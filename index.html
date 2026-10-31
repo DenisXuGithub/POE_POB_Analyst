@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PoB 全數據深度分析儀表板</title>
-  <!-- 載入 pako.js 進行前端 zlib 解壓縮 -->
+  <!-- 載入 pako.js 用於前端 zlib 解壓縮 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <style>
     body {
@@ -92,7 +92,7 @@
 </head>
 <body>
 
-  <h2>PoB 全數值動態剖析儀表板</h2>
+  <h2>PoB 全數據深度分析儀表板</h2>
   <p class="subtitle">貼上任意 PoB 代碼，前端自動解碼 XML 並對所有關鍵數字進行量化審查</p>
 
   <div class="input-container">
@@ -119,6 +119,12 @@
       const rawCode = document.getElementById('pobCodeInput').value.trim();
       const resultBox = document.getElementById('resultBox');
 
+      // 檢查 pako 是否成功載入
+      if (typeof pako === 'undefined') {
+        alert('錯誤：pako.js 壓縮庫未成功載入，請檢查網路連線或 CDN 來源！');
+        return;
+      }
+
       if (!rawCode) {
         alert('請先輸入 PoB 代碼！');
         return;
@@ -126,4 +132,141 @@
 
       try {
         // 1. URL-Safe Base64 格式修正與解碼
-        let base64 = rawCode.
+        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) base64 += '=';
+
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        // 2. pako.js zlib 解壓縮
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+
+        // 3. XML DOM 解析
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
+
+        // 檢查 XML 是否解析成功
+        const parseError = xmlDoc.querySelector("parsererror");
+        if (parseError) {
+          throw new Error("XML 解析失敗，解壓縮後的內容不是有效的 XML 格式。");
+        }
+
+        // --- 讀取基礎屬性 ---
+        const buildNode = xmlDoc.querySelector("Build");
+        const className = buildNode ? (buildNode.getAttribute("className") || "未知職業") : "未知職業";
+        const ascendName = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
+        const level = parseInt(buildNode ? buildNode.getAttribute("level") : "0") || 0;
+
+        // --- 讀取 PlayerStat 數字標籤 ---
+        let life = 0, es = 0, str = 0, dex = 0, intVal = 0, spellSuppressed = 0;
+
+        const stats = xmlDoc.querySelectorAll("PlayerStat");
+        stats.forEach(stat => {
+          const statName = stat.getAttribute("stat");
+          const val = parseFloat(stat.getAttribute("value")) || 0;
+
+          if (statName === "Life") life = Math.round(val);
+          if (statName === "EnergyShield") es = Math.round(val);
+          if (statName === "Str") str = Math.round(val);
+          if (statName === "Dex") dex = Math.round(val);
+          if (statName === "Int") intVal = Math.round(val);
+          if (statName === "SpellSuppressChance") spellSuppressed = Math.round(val);
+        });
+
+        // --- 讀取技能寶石 ---
+        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
+          name: gem.getAttribute("nameSpec"),
+          level: gem.getAttribute("level"),
+          enabled: gem.getAttribute("enabled") !== "false"
+        })).filter(g => g.name);
+
+        // --- 渲染 UI 標頭 ---
+        document.getElementById('buildTitle').innerText = `全數字量化解析：${level} 級 ${className} (${ascendName})`;
+        document.getElementById('buildMeta').innerHTML = `
+          <span class="badge">職業：${className}</span>
+          <span class="badge">昇華：${ascendName}</span>
+          <span class="badge">等級：${level} 級</span>
+          <span class="badge">偵測寶石總數：${gems.length} 顆</span>
+        `;
+
+        // --- 渲染數字方格 (Grid) ---
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="label">最大生命 (Life)</div>
+            <div class="value ${life < 4200 && level > 85 ? 'alert' : 'safe'}">${life}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">能量護盾 (ES)</div>
+            <div class="value">${es}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">力量 (Str)</div>
+            <div class="value">${str}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">敏捷 (Dex)</div>
+            <div class="value">${dex}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">智力 (Int)</div>
+            <div class="value ${intVal < 111 ? 'alert' : 'safe'}">${intVal}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">法術壓抑 (Suppress)</div>
+            <div class="value ${spellSuppressed < 100 ? 'alert' : 'safe'}">${spellSuppressed}%</div>
+          </div>
+        `;
+
+        // --- 數字量化健康度診斷 ---
+        let diagHTML = `<ul>`;
+
+        if (intVal < 111 && intVal > 0) {
+          diagHTML += `<li><strong style="color: #f85149;">[智力警告]</strong> 當前智力僅有 <strong>${intVal}</strong>。多數高階藍色輔助寶石需求約 111 智力，可能因屬性不足而無法發揮作用。</li>`;
+        } else {
+          diagHTML += `<li><span style="color: #3fb950;">[智力指標]</span> 智力數值達 <strong>${intVal}</strong>。</li>`;
+        }
+
+        if (level >= 85) {
+          if (life < 4200 && life > 0) {
+            diagHTML += `<li><strong style="color: #f85149;">[生命警告]</strong> ${level} 級機體之生命總池僅有 <strong>${life}</strong>，建議補至 4,200 以上。</li>`;
+          } else {
+            diagHTML += `<li><span style="color: #3fb950;">[生命合格]</span> 生命總池達到 <strong>${life}</strong>。</li>`;
+          }
+        }
+
+        if (spellSuppressed > 0 && spellSuppressed < 100) {
+          diagHTML += `<li><strong style="color: #f85149;">[法壓缺口]</strong> 當前法術壓抑機率為 <strong>${spellSuppressed}%</strong>，尚未達到 100% 滿壓。</li>`;
+        } else if (spellSuppressed >= 100) {
+          diagHTML += `<li><span style="color: #3fb950;">[法壓滿額]</span> 法術壓抑已達 <strong>100%</strong>。</li>`;
+        }
+
+        diagHTML += `</ul>`;
+        document.getElementById('numericDiagnosis').innerHTML = diagHTML;
+
+        // --- 寶石明細列表 ---
+        let gemHTML = `<ul>`;
+        if (gems.length > 0) {
+          gems.slice(0, 10).forEach(g => {
+            gemHTML += `<li><strong>${g.name}</strong> (等級: ${g.level})</li>`;
+          });
+        } else {
+          gemHTML += `<li>未在 PoB XML 中讀取到已配置的寶石數據。</li>`;
+        }
+        gemHTML += `</ul>`;
+        document.getElementById('gemDetails').innerHTML = gemHTML;
+
+        // 顯示結果區塊
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        console.error(err);
+        alert('PoB 解碼失敗或發生錯誤：' + err.message);
+      }
+    }
+  </script>
+
+</body>
+</html>
