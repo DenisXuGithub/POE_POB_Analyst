@@ -95,13 +95,14 @@
     .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 10px; border-radius: 4px; color: #f0a334; font-size: 13px; margin-right: 6px; }
     ul { padding-left: 20px; margin-top: 5px; }
     li { margin-bottom: 8px; }
+    .debug-log { background: #000; color: #00ff00; padding: 10px; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; margin-top: 15px; border-radius: 4px; display: none; }
   </style>
 </head>
 <body>
 
   <div class="container">
     <h2>PoB 萬用動態智慧分析儀表板</h2>
-    <p class="subtitle">貼上**任何版本、任何格式**的 PoB 代碼，前端引擎將自動動態掃描所有 XML 節點進行剖析</p>
+    <p class="subtitle">貼上**任何版本**的 PoB 代碼，前端引擎將自動解碼並動態抓取所有真實數值</p>
 
     <textarea id="pobCodeInput" placeholder="在此貼上任意 PoB 匯出碼 (eJz...)"></textarea>
     <button type="button" onclick="parseAndAnalyzePoB()">執行動態智慧剖析</button>
@@ -110,27 +111,39 @@
       <h3 id="resTitle">動態分析報告</h3>
       <div id="resMeta" style="margin-bottom: 15px;"></div>
       
-      <h4>一、 萬用動態擷取核心面板數字 (Stats Grid)</h4>
+      <h4>一、 核心面板數字監控 (Stats Grid)</h4>
       <div class="stats-grid" id="statsGrid"></div>
 
-      <h4>二、 根據即時讀取數據生成的屬性與門檻審查</h4>
+      <h4>二、 屬性門檻與瓶頸動態審查</h4>
       <div id="attributeAudit"></div>
 
       <h4>三、 生存防禦架構動態量化評估</h4>
       <div id="defenseAudit"></div>
 
-      <h4>四、 偵測到的技能寶石與動態相容性檢查</h4>
+      <h4>四、 技能寶石清單</h4>
       <div id="gemAudit"></div>
 
-      <h4>五、 針對此 PoB 現況產出的動態優化指引</h4>
+      <h4>五、 動態優化指引</h4>
       <div id="actionPlan"></div>
+
+      <h4>六、 原始資料偵錯日誌 (Debug Log)</h4>
+      <div class="debug-log" id="debugLog"></div>
     </div>
   </div>
 
   <script>
+    const classMapping = {
+      "1": "女巫 (Witch)", "2": "暗影刺客 (Shadow)", "3": "遊俠 (Ranger)",
+      "4": "決鬥者 (Duelist)", "5": "野蠻人 (Marauder)", "6": "聖堂武僧 (Templar)", "7": "貴族 (Scion)",
+      "Witch": "女巫 (Witch)", "Shadow": "暗影刺客 (Shadow)", "Ranger": "遊俠 (Ranger)",
+      "Duelist": "決鬥者 (Duelist)", "Marauder": "野蠻人 (Marauder)", "Templar": "聖堂武僧 (Templar)", "Scion": "貴族 (Scion)"
+    };
+
     function parseAndAnalyzePoB() {
       const rawInput = document.getElementById('pobCodeInput');
       const resultBox = document.getElementById('resultBox');
+      const debugLog = document.getElementById('debugLog');
+      let logText = "";
 
       if (typeof pako === 'undefined') {
         alert("系統錯誤：pako.js 未成功載入！");
@@ -161,7 +174,7 @@
           throw new Error("XML 解析失敗，字串格式不正確。");
         }
 
-        // --- 1. 動態讀取基本資料 (不放過任何可能的屬性名稱) ---
+        // --- 1. 深度抓取基本資料 ---
         const buildNode = xmlDoc.querySelector("Build");
         let level = 1;
         let ascendName = "未昇華";
@@ -171,50 +184,59 @@
           level = parseInt(buildNode.getAttribute("level")) || 1;
           ascendName = buildNode.getAttribute("ascendClassName") || buildNode.getAttribute("ascendClass") || "未昇華";
           
-          // 嘗試抓取各種可能的職業欄位
-          className = buildNode.getAttribute("className") || 
-                      buildNode.getAttribute("class") || 
-                      buildNode.getAttribute("classNameSpec") || 
-                      "未知職業";
+          let rawClass = buildNode.getAttribute("className") || buildNode.getAttribute("class") || buildNode.getAttribute("classId");
+          className = classMapping[rawClass] || rawClass || "未知職業";
         }
 
-        // --- 2. 萬用模糊比對引擎 (掃描所有可能帶有數值的標籤) ---
+        // --- 2. 全面萬用掃描 PlayerStat 與 Stat 節點 ---
         let statsMap = {};
         
-        // 抓取所有 PlayerStat, Stat, Attribute 等節點
-        xmlDoc.querySelectorAll("PlayerStat, Stat, Attribute").forEach(node => {
-          // 同時檢查所有可能的屬性名稱
-          const name1 = node.getAttribute("stat");
-          const name2 = node.getAttribute("name");
-          const name3 = node.getAttribute("id");
-          const val = parseFloat(node.getAttribute("value")) || parseFloat(node.textContent) || 0;
+        // 抓取所有可能帶有數值的標籤
+        xmlDoc.querySelectorAll("PlayerStat, Stat, Spec").forEach(node => {
+          // 檢查所有屬性
+          const attrNames = node.getAttributeNames ? node.getAttributeNames() : [];
+          let statName = "";
+          let statVal = 0;
 
-          [name1, name2, name3].forEach(n => {
-            if (n) {
-              statsMap[n.toLowerCase()] = val;
+          attrNames.forEach(attr => {
+            const val = node.getAttribute(attr);
+            if (attr === 'stat' || attr === 'name' || attr === 'id') {
+              statName = val;
             }
+            if (attr === 'value' || attr === 'data') {
+              statVal = parseFloat(val) || 0;
+            }
+          });
+
+          if (statName) {
+            statsMap[statName.toLowerCase()] = statVal;
+            logText += `[抓取] ${statName} = ${statVal}\n`;
+          }
+
+          // 同時把節點本身的屬性也過一遍
+          attrNames.forEach(attr => {
+            statsMap[attr.toLowerCase()] = parseFloat(node.getAttribute(attr)) || 0;
           });
         });
 
-        // 智慧關鍵字模糊對應 (確保不論 PoB 版本怎麼命名都能抓到)
-        let life = 0, es = 0, str = 0, dex = 0, intVal = 0, spellSuppressed = 0;
+        // 智慧對應變數
+        let life = statsMap["life"] || statsMap["maxlife"] || 0;
+        let es = statsMap["energyshield"] || statsMap["es"] || 0;
+        let str = statsMap["str"] || statsMap["strength"] || statsMap["targetstrength"] || 0;
+        let dex = statsMap["dex"] || statsMap["dexterity"] || statsMap["targetdexterity"] || 0;
+        let intVal = statsMap["int"] || statsMap["intelligence"] || statsMap["targetintelligence"] || 0;
+        let spellSuppressed = statsMap["spellsuppresschance"] || statsMap["spellsuppressionchance"] || 0;
 
-        for (let key in statsMap) {
-          let val = statsMap[key];
-          if (key === 'life' || key.includes('lifepool')) life = val;
-          if (key === 'energyshield' || key === 'es' || key.includes('energyshield')) es = val;
-          if (key === 'str' || key === 'strength') str = val;
-          if (key === 'dex' || key === 'dexterity') dex = val;
-          if (key === 'int' || key === 'intelligence') intVal = val;
-          if (key.includes('suppress') || key.includes('spellsuppress')) spellSuppressed = val;
-        }
-
-        // 如果統計節點找不到，嘗試從 Build 節點直接讀取三圍
+        // 如果數值還是 0，嘗試直接從 Build 屬性撈取
         if (str === 0 && buildNode) {
-          str = parseInt(buildNode.getAttribute("targetStrength")) || parseInt(buildNode.getAttribute("strength")) || 0;
-          dex = parseInt(buildNode.getAttribute("targetDexterity")) || parseInt(buildNode.getAttribute("dexterity")) || 0;
-          intVal = parseInt(buildNode.getAttribute("targetIntelligence")) || parseInt(buildNode.getAttribute("intelligence")) || 0;
+          str = parseInt(buildNode.getAttribute("targetStrength") || buildNode.getAttribute("strength")) || 0;
+          dex = parseInt(buildNode.getAttribute("targetDexterity") || buildNode.getAttribute("dexterity")) || 0;
+          intVal = parseInt(buildNode.getAttribute("targetIntelligence") || buildNode.getAttribute("intelligence")) || 0;
         }
+
+        logText += `\n解析結果 -> 生命:${life}, 護盾:${es}, 力量:${str}, 敏捷:${dex}, 智力:${intVal}, 法壓:${spellSuppressed}\n`;
+        debugLog.innerText = logText;
+        debugLog.style.display = 'block';
 
         // --- 3. 動態讀取寶石 ---
         const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
@@ -233,7 +255,6 @@
           <span class="badge">偵測寶石總數：${gems.length} 顆</span>
         `;
 
-        // 動態門檻判定
         let intAlert = (intVal > 0 && intVal < 111);
         let suppressAlert = (spellSuppressed > 0 && spellSuppressed < 100);
 
@@ -246,27 +267,20 @@
           <div class="stat-card"><div class="label">法術壓抑 (Suppress)</div><div class="value ${suppressAlert ? 'alert' : 'safe'}">${Math.round(spellSuppressed)}%</div></div>
         `;
 
-        // --- 5. 動態生成分析內文 ---
+        // --- 5. 動態分析內文 ---
         let attrHTML = `<div class="analysis-box ${intAlert ? 'warning' : 'success'}">`;
         if (intVal > 0 && intVal < 111) {
-          attrHTML += `<p><strong style="color: #f85149;">【動態屬性警示】當前智力偵測值為 ${Math.round(intVal)} (低於 111 門檻)</strong></p>`;
-          attrHTML += `<p>系統偵測到此 PoB 的智力未達部分高等藍色寶石需求，配置時請留意是否會發生屬性不足而卡死的情況。</p>`;
+          attrHTML += `<p><strong style="color: #f85149;">【屬性警示】當前智力為 ${Math.round(intVal)} (低於 111 門檻)</strong></p>`;
         } else {
-          attrHTML += `<p><span style="color: #3fb950;">【屬性動態判定】當前智力為 ${Math.round(intVal)}，符合目前基礎門檻。</span></p>`;
+          attrHTML += `<p><span style="color: #3fb950;">【屬性判定】當前智力為 ${Math.round(intVal)}，符合目前基礎門檻。</span></p>`;
         }
         attrHTML += `</div>`;
         document.getElementById('attributeAudit').innerHTML = attrHTML;
 
         let defHTML = `<div class="analysis-box info">`;
         defHTML += `<p><strong>防禦指標動態評估</strong></p><ul>`;
-        if (spellSuppressed >= 100) {
-          defHTML += `<li><span style="color: #3fb950;">✔ 法術壓抑已達 100% 滿壓</span></li>`;
-        } else if (spellSuppressed > 0) {
-          defHTML += `<li><span style="color: #f85149;">⚠️ 法術壓抑未滿 (${Math.round(spellSuppressed)}%)</span></li>`;
-        } else {
-          defHTML += `<li><span>ℹ️ 無法術壓抑數據或未配置</span></li>`;
-        }
-        defHTML += `<li>生命總池動態偵測值：<strong>${Math.round(life)}</strong></li>`;
+        defHTML += `<li>法術壓抑動態偵測：<strong>${Math.round(spellSuppressed)}%</strong></li>`;
+        defHTML += `<li>生命總池動態偵測：<strong>${Math.round(life)}</strong></li>`;
         defHTML += `</ul></div>`;
         document.getElementById('defenseAudit').innerHTML = defHTML;
 
@@ -282,8 +296,8 @@
         document.getElementById('gemAudit').innerHTML = gemHTML;
 
         let planHTML = `<div class="analysis-box success"><ul>`;
-        planHTML += `<li>此報告完全基於您當前輸入的 PoB 原始碼進行動態 XML 掃描與運算。</li>`;
-        planHTML += `<li>換一組全新的 PoB 貼上後，所有數據與分析將會即時自動更新。</li>`;
+        planHTML += `<li>此報告完全基於您貼上的 PoB 原始碼進行動態 XML 掃描。</li>`;
+        planHTML += `<li>若下方「原始資料偵錯日誌」中有抓到對應數值但面板未顯示，可隨時將該日誌提供給我以精準對應！</li>`;
         planHTML += `</ul></div>`;
         document.getElementById('actionPlan').innerHTML = planHTML;
 
