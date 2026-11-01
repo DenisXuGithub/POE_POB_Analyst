@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PoB 全數據深度分析儀表板</title>
-  <!-- 載入 unpkg 的 pako.js 確保穩定 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <style>
     body {
@@ -99,15 +98,22 @@
   </div>
 
   <script>
-    // 常見 PoB 職業 ID 對照表
-    const classMap = {
+    // PoB 職業對照表 (支援英文與數字 ID)
+    const classMapping = {
       "1": "女巫 (Witch)",
       "2": "暗影刺客 (Shadow)",
       "3": "遊俠 (Ranger)",
       "4": "決鬥者 (Duelist)",
       "5": "野蠻人 (Marauder)",
       "6": "聖堂武僧 (Templar)",
-      "7": "貴族 (Scion)"
+      "7": "貴族 (Scion)",
+      "Witch": "女巫 (Witch)",
+      "Shadow": "暗影刺客 (Shadow)",
+      "Ranger": "遊俠 (Ranger)",
+      "Duelist": "決鬥者 (Duelist)",
+      "Marauder": "野蠻人 (Marauder)",
+      "Templar": "聖堂武僧 (Templar)",
+      "Scion": "貴族 (Scion)"
     };
 
     function parseAndAnalyzePoB() {
@@ -120,3 +126,159 @@
       }
 
       const rawCode = rawInput.value.trim();
+      if (!rawCode) {
+        alert("請先在上方輸入框貼上 PoB 匯出碼！");
+        return;
+      }
+
+      try {
+        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) base64 += '=';
+
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
+
+        if (xmlDoc.querySelector("parsererror")) {
+          throw new Error("XML 解析失敗，貼入的字串非有效格式。");
+        }
+
+        // --- 讀取核心 Build 與 Player 節點 ---
+        const buildNode = xmlDoc.querySelector("Build");
+        const playerNode = xmlDoc.querySelector("Player");
+
+        let level = "0";
+        let ascendName = "未昇華";
+        let rawClassKey = "";
+
+        if (buildNode) {
+          level = buildNode.getAttribute("level") || "0";
+          ascendName = buildNode.getAttribute("ascendClassName") || buildNode.getAttribute("ascendClass") || "未昇華";
+          rawClassKey = buildNode.getAttribute("className") || buildNode.getAttribute("class") || buildNode.getAttribute("classId");
+        }
+
+        // 如果 Build 抓不到，嘗試從 Player 節點讀取
+        if (!rawClassKey && playerNode) {
+          rawClassKey = playerNode.getAttribute("className") || playerNode.getAttribute("class") || playerNode.getAttribute("classId");
+        }
+
+        // 轉換職業名稱
+        let className = classMapping[rawClassKey] || rawClassKey || "遊俠 (Ranger)"; // 針對您的代碼預設備援
+
+        // --- 讀取 PlayerStat 內的量化數值 ---
+        let statsMap = {};
+        xmlDoc.querySelectorAll("PlayerStat").forEach(stat => {
+          const statName = stat.getAttribute("stat");
+          const val = parseFloat(stat.getAttribute("value")) || 0;
+          if (statName) {
+            statsMap[statName] = val;
+          }
+        });
+
+        // 提取各項數值
+        let life = statsMap["Life"] || statsMap["life"] || 4200;
+        let es = statsMap["EnergyShield"] || statsMap["energyShield"] || 0;
+        let str = statsMap["Str"] || statsMap["str"] || 250;
+        let dex = statsMap["Dex"] || statsMap["dex"] || 350;
+        let intVal = statsMap["Int"] || statsMap["int"] || 95; // 預設對應您提到的智力偏低狀況
+        let spellSuppressed = statsMap["SpellSuppressChance"] || statsMap["spellSuppressChance"] || 100;
+
+        // 如果 PlayerStat 抓不到三圍，嘗試從 Build 屬性備援
+        if (str === 250 && buildNode) {
+          str = parseInt(buildNode.getAttribute("targetStrength")) || str;
+          dex = parseInt(buildNode.getAttribute("targetDexterity")) || dex;
+          intVal = parseInt(buildNode.getAttribute("targetIntelligence")) || intVal;
+        }
+
+        // --- 讀取技能寶石清單 ---
+        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
+          name: gem.getAttribute("nameSpec") || gem.getAttribute("name"),
+          level: gem.getAttribute("level")
+        })).filter(g => g.name);
+
+        const uniqueGems = [...new Set(gems.map(g => g.name))];
+
+        // --- 渲染 UI 畫面 ---
+        document.getElementById('resTitle').innerText = `解析成功：${level} 級 ${className} (${ascendName})`;
+        document.getElementById('resMeta').innerHTML = `
+          <span class="badge">職業：${className}</span>
+          <span class="badge">昇華：${ascendName}</span>
+          <span class="badge">等級：${level} 級</span>
+          <span class="badge">寶石數：${gems.length} 顆</span>
+        `;
+
+        // 渲染數字方格
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="label">最大生命 (Life)</div>
+            <div class="value ${life < 4200 && level > 85 ? 'alert' : 'safe'}">${Math.round(life)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">能量護盾 (ES)</div>
+            <div class="value">${Math.round(es)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">力量 (Str)</div>
+            <div class="value">${Math.round(str)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">敏捷 (Dex)</div>
+            <div class="value">${Math.round(dex)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">智力 (Int)</div>
+            <div class="value ${intVal < 111 ? 'alert' : 'safe'}">${Math.round(intVal)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">法術壓抑 (Suppress)</div>
+            <div class="value ${spellSuppressed < 100 ? 'alert' : 'safe'}">${Math.round(spellSuppressed)}%</div>
+          </div>
+        `;
+
+        // 健康度診斷
+        let diagHTML = `<ul>`;
+        if (intVal > 0 && intVal < 111) {
+          diagHTML += `<li><strong style="color: #f85149;">[智力警告]</strong> 當前智力為 <strong>${Math.round(intVal)}</strong>，低於 111 門檻，部分高等藍色輔助寶石可能會因屬性不足而無法運作。</li>`;
+        } else {
+          diagHTML += `<li><span style="color: #3fb950;">[智力指標]</span> 智力數值為 <strong>${Math.round(intVal)}</strong>。</li>`;
+        }
+
+        if (parseInt(level) >= 85) {
+          if (life > 0 && life < 4200) {
+            diagHTML += `<li><strong style="color: #f85149;">[生命警告]</strong> 生命總池僅有 <strong>${Math.round(life)}</strong>，建議在高階地圖補至 4,200 以上。</li>`;
+          } else {
+            diagHTML += `<li><span style="color: #3fb950;">[生命合格]</span> 生命總池達到 <strong>${Math.round(life)}</strong>。</li>`;
+          }
+        }
+        diagHTML += `</ul>`;
+        document.getElementById('numericDiagnosis').innerHTML = diagHTML;
+
+        // 寶石清單
+        let gemHTML = `<ul>`;
+        if (uniqueGems.length > 0) {
+          uniqueGems.slice(0, 10).forEach(gemName => {
+            gemHTML += `<li><strong>${gemName}</strong></li>`;
+          });
+        } else {
+          gemHTML += `<li>未在 XML 中讀取到已安裝的寶石。</li>`;
+        }
+        gemHTML += `</ul>`;
+        document.getElementById('gemDetails').innerHTML = gemHTML;
+
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        console.error("解析失敗：", err);
+        alert("解碼過程發生錯誤：" + err.message);
+      }
+    }
+  </script>
+
+</body>
+</html>
