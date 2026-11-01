@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 前端動態解析測試</title>
+  <title>PoB 全數據深度分析儀表板</title>
   <!-- 載入 unpkg 的 pako.js 確保連線穩定 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <style>
@@ -16,7 +16,7 @@
       flex-direction: column;
       align-items: center;
     }
-    .container { width: 100%; max-width: 900px; }
+    .container { width: 100%; max-width: 950px; }
     h2 { color: #f0a334; }
     textarea {
       width: 100%;
@@ -44,59 +44,88 @@
     button:hover { background: #2ea043; }
     .result {
       width: 100%;
-      max-width: 900px;
+      max-width: 950px;
       background: #161b22;
       border: 1px solid #30363d;
-      padding: 20px;
+      padding: 25px;
       margin-top: 20px;
-      border-radius: 6px;
+      border-radius: 8px;
       display: none;
       box-sizing: border-box;
+      line-height: 1.6;
     }
-    .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 8px; border-radius: 4px; color: #f0a334; font-size: 13px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 15px 0;
+    }
+    .stat-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .stat-card .label { font-size: 12px; color: #8b949e; }
+    .stat-card .value { font-size: 18px; font-weight: bold; color: #f0a334; margin-top: 4px; }
+    .stat-card .value.alert { color: #f85149; }
+    .stat-card .value.safe { color: #3fb950; }
+    .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 10px; border-radius: 4px; color: #f0a334; font-size: 13px; margin-right: 6px; }
+    ul { padding-left: 20px; margin-top: 5px; }
+    li { margin-bottom: 6px; }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <h2>PoB 前端自動動態解析測試</h2>
+    <h2>PoB 全數據深度分析儀表板</h2>
     <textarea id="pobCodeInput" placeholder="請在此貼上 PoB 匯出碼 (eJz...)"></textarea>
     <button type="button" onclick="parseAndAnalyzePoB()">執行全數據解析</button>
   </div>
 
   <div class="result" id="resultBox">
-    <h3 id="resTitle" style="color: #58a6ff;">解析結果</h3>
+    <h3 id="resTitle" style="color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px;">解析結果</h3>
     <div id="resMeta" style="margin-bottom: 15px;"></div>
-    <div id="resBody"></div>
+    
+    <h4>一、 面板核心數字監控 (Stats Grid)</h4>
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <h4>二、 數字量化健康度診斷</h4>
+    <div id="numericDiagnosis"></div>
+
+    <h4>三、 偵測到的核心寶石清單</h4>
+    <div id="gemDetails"></div>
   </div>
 
   <script>
+    // PoB 職業代號對照表 (XML 內的 classId 通常是數字)
+    const classMap = {
+      "1": "女巫 (Witch)",
+      "2": "暗影刺客 (Shadow)",
+      "3": "獵人/遊俠 (Ranger)",
+      "4": "決鬥者 (Duelist)",
+      "5": "野蠻人 (Marauder)",
+      "6": "聖堂武僧 (Templar)",
+      "7": "貴族 (Scion)"
+    };
+
     function parseAndAnalyzePoB() {
-      console.log("解析按鈕已觸發...");
       const rawInput = document.getElementById('pobCodeInput');
       const resultBox = document.getElementById('resultBox');
 
-      if (!rawInput) {
-        alert("找不到 pobCodeInput 文字框標籤！");
+      if (typeof pako === 'undefined') {
+        alert("系統錯誤：pako.js 程式庫未載入成功！");
         return;
       }
 
       const rawCode = rawInput.value.trim();
-
-      // 檢查 1: pako.js 是否載入成功
-      if (typeof pako === 'undefined') {
-        alert("系統錯誤：pako.js 程式庫未載入成功，請確認網路連線或 CDN 網址！");
-        return;
-      }
-
-      // 檢查 2: 是否填寫 PoB 碼
       if (!rawCode) {
         alert("請先在上方輸入框貼上 PoB 匯出碼！");
         return;
       }
 
       try {
-        // Base64 換算與 zlib 解壓縮
         let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
         while (base64.length % 4 !== 0) base64 += '=';
 
@@ -110,34 +139,79 @@
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(decompressed, "text/xml");
 
-        // 檢查 XML 解析
         if (xmlDoc.querySelector("parsererror")) {
-          throw new Error("XML 解析失敗，貼入的字串非 PoB 有效格式。");
+          throw new Error("XML 解析失敗，貼入的字串非有效格式。");
         }
 
-        // 抓取職業與等級
+        // --- 讀取核心 Build 屬性 ---
         const buildNode = xmlDoc.querySelector("Build");
-        const className = buildNode ? (buildNode.getAttribute("className") || "未知職業") : "未知職業";
+        
+        // 支援多種欄位命名與 classId 轉換
+        let className = "未知職業";
+        if (buildNode) {
+          const rawClassName = buildNode.getAttribute("className");
+          const classId = buildNode.getAttribute("classId");
+          
+          if (rawClassName) {
+            className = rawClassName;
+          } else if (classId && classMap[classId]) {
+            className = classMap[classId];
+          }
+        }
+
         const ascendName = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
         const level = buildNode ? (buildNode.getAttribute("level") || "0") : "0";
 
-        // 顯示解析內容
+        // --- 讀取 PlayerStat 內的量化數值 ---
+        let life = 0, es = 0, str = 0, dex = 0, intVal = 0, spellSuppressed = 0;
+
+        xmlDoc.querySelectorAll("PlayerStat").forEach(stat => {
+          const statName = stat.getAttribute("stat");
+          const val = parseFloat(stat.getAttribute("value")) || 0;
+
+          if (statName === "Life") life = Math.round(val);
+          if (statName === "EnergyShield") es = Math.round(val);
+          if (statName === "Str") str = Math.round(val);
+          if (statName === "Dex") dex = Math.round(val);
+          if (statName === "Int") intVal = Math.round(val);
+          if (statName === "SpellSuppressChance") spellSuppressed = Math.round(val);
+        });
+
+        // --- 讀取技能寶石清單 ---
+        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
+          name: gem.getAttribute("nameSpec") || gem.getAttribute("name"),
+          level: gem.getAttribute("level")
+        })).filter(g => g.name);
+
+        const uniqueGems = [...new Set(gems.map(g => g.name))];
+
+        // --- 渲染 UI 畫面 ---
         document.getElementById('resTitle').innerText = `解析成功：${level} 級 ${className} (${ascendName})`;
         document.getElementById('resMeta').innerHTML = `
           <span class="badge">職業：${className}</span>
           <span class="badge">昇華：${ascendName}</span>
           <span class="badge">等級：${level} 級</span>
+          <span class="badge">寶石數：${gems.length} 顆</span>
         `;
-        document.getElementById('resBody').innerHTML = `<p style="color: #3fb950;">✔ XML 資料已成功解開！這串 PoB 的核心職業是 <strong>${className}</strong>。</p>`;
-        
-        resultBox.style.display = 'block';
 
-      } catch (err) {
-        console.error("解碼過程發生例外錯誤：", err);
-        alert("解碼過程發生錯誤：" + err.message);
-      }
-    }
-  </script>
-
-</body>
-</html>
+        // 渲染數字方格
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="label">最大生命 (Life)</div>
+            <div class="value ${life < 4200 && level > 85 ? 'alert' : 'safe'}">${life}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">能量護盾 (ES)</div>
+            <div class="value">${es}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">力量 (Str)</div>
+            <div class="value">${str}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">敏捷 (Dex)</div>
+            <div class="value">${dex}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">智力 (Int)</div>
+            <div class="value ${intVal < 111 ? 'alert' : 'safe'}">${
