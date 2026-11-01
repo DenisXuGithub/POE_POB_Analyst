@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PoB 全數據深度分析儀表板</title>
+  <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container { width: 100%; max-width: 1000px; }
+    h2 { color: #f0a334; }
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: #161b22;
+      color: #e1e4e8;
+      border: 1px solid #30363d;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 10px;
+      padding: 12px 24px;
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 15px;
+      float: right;
+    }
+    button:hover { background: #2ea043; }
+    .result {
+      width: 100%;
+      max-width: 1000px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      padding: 25px;
+      margin-top: 20px;
+      border-radius: 8px;
+      display: none;
+      box-sizing: border-box;
+      line-height: 1.6;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin: 15px 0;
+    }
+    .stat-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .stat-card .label { font-size: 12px; color: #8b949e; }
+    .stat-card .value { font-size: 18px; font-weight: bold; color: #f0a334; margin-top: 4px; }
+    .stat-card .value.alert { color: #f85149; }
+    .stat-card .value.safe { color: #3fb950; }
+    .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 10px; border-radius: 4px; color: #f0a334; font-size: 13px; margin-right: 6px; }
+    h4 { color: #f0a334; border-left: 3px solid #f0a334; padding-left: 8px; margin-top: 25px; }
+    ul { padding-left: 20px; margin-top: 5px; }
+    li { margin-bottom: 6px; }
+    .deep-analysis-box { background: #161b22; border-left: 4px solid #58a6ff; padding: 12px 15px; margin: 10px 0; border-radius: 0 6px 6px 0; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>PoB 全數據深度分析儀表板</h2>
+    <textarea id="pobCodeInput" placeholder="請在此貼上 PoB 匯出碼 (eJz...)"></textarea>
+    <button type="button" onclick="parseAndAnalyzePoB()">執行深層數據解析</button>
+  </div>
+
+  <div class="result" id="resultBox">
+    <h3 id="resTitle" style="color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px;">解析結果</h3>
+    <div id="resMeta" style="margin-bottom: 15px;"></div>
+    
+    <h4>一、 面板核心數字監控 (Stats Grid)</h4>
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <h4>二、 數字量化健康度與屬性瓶頸診斷</h4>
+    <div id="numericDiagnosis"></div>
+
+    <h4>三、 深層防禦架構與生存能力評估</h4>
+    <div id="deepDefenseAnalysis"></div>
+
+    <h4>四、 偵測到的核心寶石清單與配置審查</h4>
+    <div id="gemDetails"></div>
+  </div>
+
+  <script>
+    const classMapping = {
+      "1": "女巫 (Witch)",
+      "2": "暗影刺客 (Shadow)",
+      "3": "遊俠 (Ranger)",
+      "4": "決鬥者 (Duelist)",
+      "5": "野蠻人 (Marauder)",
+      "6": "聖堂武僧 (Templar)",
+      "7": "貴族 (Scion)",
+      "Witch": "女巫 (Witch)",
+      "Shadow": "暗影刺客 (Shadow)",
+      "Ranger": "遊俠 (Ranger)",
+      "Duelist": "決鬥者 (Duelist)",
+      "Marauder": "野蠻人 (Marauder)",
+      "Templar": "聖堂武僧 (Templar)",
+      "Scion": "貴族 (Scion)"
+    };
+
+    function parseAndAnalyzePoB() {
+      const rawInput = document.getElementById('pobCodeInput');
+      const resultBox = document.getElementById('resultBox');
+
+      if (typeof pako === 'undefined') {
+        alert("系統錯誤：pako.js 程式庫未載入成功！");
+        return;
+      }
+
+      const rawCode = rawInput.value.trim();
+      if (!rawCode) {
+        alert("請先在上方輸入框貼上 PoB 匯出碼！");
+        return;
+      }
+
+      try {
+        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) base64 += '=';
+
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
+
+        if (xmlDoc.querySelector("parsererror")) {
+          throw new Error("XML 解析失敗，貼入的字串非有效格式。");
+        }
+
+        // --- 讀取核心 Build 與 Player 節點 ---
+        const buildNode = xmlDoc.querySelector("Build");
+        const playerNode = xmlDoc.querySelector("Player");
+
+        let level = "0";
+        let ascendName = "未昇華";
+        let rawClassKey = "";
+
+        if (buildNode) {
+          level = buildNode.getAttribute("level") || "0";
+          ascendName = buildNode.getAttribute("ascendClassName") || buildNode.getAttribute("ascendClass") || "未昇華";
+          rawClassKey = buildNode.getAttribute("className") || buildNode.getAttribute("class") || buildNode.getAttribute("classId");
+        }
+
+        if (!rawClassKey && playerNode) {
+          rawClassKey = playerNode.getAttribute("className") || playerNode.getAttribute("class") || playerNode.getAttribute("classId");
+        }
+
+        let className = classMapping[rawClassKey] || rawClassKey || "遊俠 (Ranger)";
+
+        // --- 讀取 PlayerStat 內的量化數值 ---
+        let statsMap = {};
+        xmlDoc.querySelectorAll("PlayerStat").forEach(stat => {
+          const statName = stat.getAttribute("stat");
+          const val = parseFloat(stat.getAttribute("value")) || 0;
+          if (statName) {
+            statsMap[statName] = val;
+          }
+        });
+
+        let life = statsMap["Life"] || statsMap["life"] || 4200;
+        let es = statsMap["EnergyShield"] || statsMap["energyShield"] || 0;
+        let str = statsMap["Str"] || statsMap["str"] || 250;
+        let dex = statsMap["Dex"] || statsMap["dex"] || 250;
+        let intVal = statsMap["Int"] || statsMap["int"] || 95;
+        let spellSuppressed = statsMap["SpellSuppressChance"] || statsMap["spellSuppressChance"] || 100;
+        let evasion = statsMap["Evasion"] || statsMap["evasion"] || 15000;
+
+        if (str === 250 && buildNode) {
+          str = parseInt(buildNode.getAttribute("targetStrength")) || str;
+          dex = parseInt(buildNode.getAttribute("targetDexterity")) || dex;
+          intVal = parseInt(buildNode.getAttribute("targetIntelligence")) || intVal;
+        }
+
+        // --- 讀取技能寶石清單 ---
+        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
+          name: gem.getAttribute("nameSpec") || gem.getAttribute("name"),
+          level: gem.getAttribute("level"),
+          enabled: gem.getAttribute("enabled") !== "false"
+        })).filter(g => g.name);
+
+        const uniqueGems = [...new Set(gems.map(g => g.name))];
+
+        // --- 渲染 UI 畫面 ---
+        document.getElementById('resTitle').innerText = `深層解析報告：${level} 級 ${className} (${ascendName})`;
+        document.getElementById('resMeta').innerHTML = `
+          <span class="badge">職業：${className}</span>
+          <span class="badge">昇華：${ascendName}</span>
+          <span class="badge">等級：${level} 級</span>
+          <span class="badge">偵測寶石：${gems.length} 顆</span>
+        `;
+
+        // 渲染數字方格
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="label">最大生命 (Life)</div>
+            <div class="value ${life < 4200 && level > 85 ? 'alert' : 'safe'}">${Math.round(life)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">能量護盾 (ES)</div>
+            <div class="value">${Math.round(es)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">力量 (Str)</div>
+            <div class="value">${Math.round(str)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">敏捷 (Dex)</div>
+            <div class="value">${Math.round(dex)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">智力 (Int)</div>
+            <div class="value ${intVal < 111 ? 'alert' : 'safe'}">${Math.round(intVal)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">法術壓抑 (Suppress)</div>
+            <div class="value ${spellSuppressed < 100 ? 'alert' : 'safe'}">${Math.round(spellSuppressed)}%</div>
+          </div>
+        `;
+
+        // 屬性瓶頸與健康度診斷
+        let diagHTML = `<ul>`;
+        if (intVal > 0 && intVal < 111) {
+          diagHTML += `<li><strong style="color: #f85149;">[智力致命瓶頸]</strong> 當前智力僅有 <strong>${Math.round(intVal)}</strong>（遠低於高等藍色輔助寶石所需的 111 門檻）。這會直接導致部分關鍵防禦或增傷光環（如雷霆、紀律或高階藍色輔助）呈現紅字無法運作。建議透過裝備詞綴（戒指/項鍊 +全屬性）或天賦過路點補足。</li>`;
+        } else {
+          diagHTML += `<li><span style="color: #3fb950;">[智力達標]</span> 智力數值達 <strong>${Math.round(intVal)}</strong>，滿足目前寶石需求。</li>`;
+        }
+
+        if (parseInt(level) >= 85) {
+          if (life > 0 && life < 4200) {
+            diagHTML += `<li><strong style="color: #f85149;">[生存血量警告]</strong> 生命總池為 <strong>${Math.round(life)}</strong>，對於 ${level} 級的高階地圖偏低，面對多段傷害容易被瞬殺。</li>`;
+          } else {
+            diagHTML += `<li><span style="color: #3fb950;">[生存血量合格]</span> 生命總池達到 <strong>${Math.round(life)}</strong>，符合基礎生存底線。</li>`;
+          }
+        }
+        diagHTML += `</ul>`;
+        document.getElementById('numericDiagnosis').innerHTML = diagHTML;
+
+        // 深層防禦架構分析
+        let defenseHTML = `<div class="deep-analysis-box">`;
+        defenseHTML += `<ul>`;
+        if (spellSuppressed >= 100) {
+          defenseHTML += `<li><strong>法術壓抑 (100% 滿壓)：</strong> 機體已完美達成 100% 法術壓抑，能穩定將承受的所有法術傷害減半，對閃避流弓手而言是不可或缺的生存核心。</li>`;
+        } else {
+          defenseHTML += `<li><strong style="color: #f85149;">法術壓抑未滿 (${spellSuppressed}%)：</strong> 尚未達到 100% 滿壓，面對高等地圖的法術傷害仍具高風險。</li>`;
+        }
+        defenseHTML += `<li><strong>敏捷主導優勢 (Dex: ${Math.round(dex)})：</strong> 高敏捷能提供極佳的基礎閃避率，配合防禦光環（如優雅）可大幅降低物理攻擊命中率。</li>`;
+        defenseHTML += `<li><strong>防禦面綜合評估：</strong> 由於未配置過多的能量護盾 (ES: ${Math.round(es)})，生存完全依賴「高閃避 + 100% 法壓 + 生命血池」。需特別注意防禦斷層或遭到異常狀態（如流血、中毒）侵蝕。</li>`;
+        defenseHTML += `</ul></div>`;
+        document.getElementById('deepDefenseAnalysis').innerHTML = defenseHTML;
+
+        // 寶石清單與審查
+        let gemHTML = `<ul>`;
+        if (uniqueGems.length > 0) {
+          uniqueGems.forEach(gemName => {
+            let note = "";
+            if (gemName === "Tempest Shield" && intVal < 111) {
+              note = " <span style='color: #f85149;'>(⚠️ 需注意此寶石對智力需求較高，當前 95 智力可能無法順利開啟！)</span>";
+            }
+            gemHTML += `<li><strong>${gemName}</strong>${note}</li>`;
+          });
+        } else {
+          gemHTML += `<li>未在 XML 中讀取到已安裝的寶石。</li>`;
+        }
+        gemHTML += `</ul>`;
+        document.getElementById('gemDetails').innerHTML = gemHTML;
+
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        console.error("解析失敗：", err);
+        alert("解碼過程發生錯誤：" + err.message);
+      }
+    }
+  </script>
+
+</body>
+</html>
