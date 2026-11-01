@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PoB 全數據深度分析儀表板</title>
-  <!-- 載入 unpkg 的 pako.js 確保連線穩定 -->
+  <!-- 載入 unpkg 的 pako.js 確保穩定 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <style>
     body {
@@ -56,7 +56,7 @@
     }
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 12px;
       margin: 15px 0;
     }
@@ -99,11 +99,11 @@
   </div>
 
   <script>
-    // PoB 職業代號對照表 (XML 內的 classId 通常是數字)
+    // 常見 PoB 職業 ID 對照表
     const classMap = {
       "1": "女巫 (Witch)",
       "2": "暗影刺客 (Shadow)",
-      "3": "獵人/遊俠 (Ranger)",
+      "3": "遊俠 (Ranger)",
       "4": "決鬥者 (Duelist)",
       "5": "野蠻人 (Marauder)",
       "6": "聖堂武僧 (Templar)",
@@ -120,98 +120,3 @@
       }
 
       const rawCode = rawInput.value.trim();
-      if (!rawCode) {
-        alert("請先在上方輸入框貼上 PoB 匯出碼！");
-        return;
-      }
-
-      try {
-        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
-        while (base64.length % 4 !== 0) base64 += '=';
-
-        const binaryStr = atob(base64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-
-        const decompressed = pako.inflate(bytes, { to: 'string' });
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
-
-        if (xmlDoc.querySelector("parsererror")) {
-          throw new Error("XML 解析失敗，貼入的字串非有效格式。");
-        }
-
-        // --- 讀取核心 Build 屬性 ---
-        const buildNode = xmlDoc.querySelector("Build");
-        
-        // 支援多種欄位命名與 classId 轉換
-        let className = "未知職業";
-        if (buildNode) {
-          const rawClassName = buildNode.getAttribute("className");
-          const classId = buildNode.getAttribute("classId");
-          
-          if (rawClassName) {
-            className = rawClassName;
-          } else if (classId && classMap[classId]) {
-            className = classMap[classId];
-          }
-        }
-
-        const ascendName = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
-        const level = buildNode ? (buildNode.getAttribute("level") || "0") : "0";
-
-        // --- 讀取 PlayerStat 內的量化數值 ---
-        let life = 0, es = 0, str = 0, dex = 0, intVal = 0, spellSuppressed = 0;
-
-        xmlDoc.querySelectorAll("PlayerStat").forEach(stat => {
-          const statName = stat.getAttribute("stat");
-          const val = parseFloat(stat.getAttribute("value")) || 0;
-
-          if (statName === "Life") life = Math.round(val);
-          if (statName === "EnergyShield") es = Math.round(val);
-          if (statName === "Str") str = Math.round(val);
-          if (statName === "Dex") dex = Math.round(val);
-          if (statName === "Int") intVal = Math.round(val);
-          if (statName === "SpellSuppressChance") spellSuppressed = Math.round(val);
-        });
-
-        // --- 讀取技能寶石清單 ---
-        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
-          name: gem.getAttribute("nameSpec") || gem.getAttribute("name"),
-          level: gem.getAttribute("level")
-        })).filter(g => g.name);
-
-        const uniqueGems = [...new Set(gems.map(g => g.name))];
-
-        // --- 渲染 UI 畫面 ---
-        document.getElementById('resTitle').innerText = `解析成功：${level} 級 ${className} (${ascendName})`;
-        document.getElementById('resMeta').innerHTML = `
-          <span class="badge">職業：${className}</span>
-          <span class="badge">昇華：${ascendName}</span>
-          <span class="badge">等級：${level} 級</span>
-          <span class="badge">寶石數：${gems.length} 顆</span>
-        `;
-
-        // 渲染數字方格
-        document.getElementById('statsGrid').innerHTML = `
-          <div class="stat-card">
-            <div class="label">最大生命 (Life)</div>
-            <div class="value ${life < 4200 && level > 85 ? 'alert' : 'safe'}">${life}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">能量護盾 (ES)</div>
-            <div class="value">${es}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">力量 (Str)</div>
-            <div class="value">${str}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">敏捷 (Dex)</div>
-            <div class="value">${dex}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">智力 (Int)</div>
-            <div class="value ${intVal < 111 ? 'alert' : 'safe'}">${
