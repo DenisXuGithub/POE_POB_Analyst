@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 全數據深度 AI 分析儀表板</title>
-  <!-- 載入 pako.js 解壓縮庫 -->
+  <title>PoB 萬用動態智慧分析儀表板</title>
+  <!-- 載入 unpkg pako.js 解壓縮庫 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <style>
     body {
@@ -49,7 +49,6 @@
     }
     button:hover { background-color: #2ea043; }
     
-    /* 分析結果容器 */
     .analysis-result {
       width: 100%;
       max-width: 1000px;
@@ -65,7 +64,6 @@
     .analysis-result h3 { color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
     .analysis-result h4 { color: #f0a334; margin-top: 25px; margin-bottom: 10px; border-left: 4px solid #f0a334; padding-left: 10px; }
     
-    /* 數值方格 (Grid) */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -84,7 +82,6 @@
     .stat-card .value.alert { color: #f85149; }
     .stat-card .value.safe { color: #3fb950; }
     
-    /* 評分與分析區塊 */
     .analysis-box {
       background: #0d1117;
       border: 1px solid #30363d;
@@ -104,29 +101,29 @@
 <body>
 
   <div class="container">
-    <h2>PoB 全數據深度 AI 分析儀表板</h2>
-    <p class="subtitle">貼上任意 PoB 匯出碼，前端動態解析 XML 並自動生成深度量化與健檢報告</p>
+    <h2>PoB 萬用動態智慧分析儀表板</h2>
+    <p class="subtitle">貼上**任何**職業、**任何**等級的 PoB 代碼，前端引擎將即時解碼 XML 並針對該組數據進行動態量化剖析</p>
 
-    <textarea id="pobCodeInput" placeholder="在此貼上任何 PoB 匯出碼 (eJz...)"></textarea>
-    <button type="button" onclick="parseAndAnalyzePoB()">執行 AI 全面剖析</button>
+    <textarea id="pobCodeInput" placeholder="在此貼上任意 PoB 匯出碼 (eJz...)"></textarea>
+    <button type="button" onclick="parseAndAnalyzePoB()">執行動態智慧剖析</button>
 
     <div class="analysis-result" id="resultBox">
-      <h3 id="resTitle">角色全面深度剖析報告</h3>
+      <h3 id="resTitle">動態分析報告</h3>
       <div id="resMeta" style="margin-bottom: 15px;"></div>
       
-      <h4>一、 核心面板數字監控 (Stats Grid)</h4>
+      <h4>一、 動態擷取核心面板數字 (Stats Grid)</h4>
       <div class="stats-grid" id="statsGrid"></div>
 
-      <h4>二、 屬性瓶頸與致命隱患審查 (Attribute Audit)</h4>
+      <h4>二、 根據真實數據動態生成的屬性與門檻審查</h4>
       <div id="attributeAudit"></div>
 
-      <h4>三、 生存防禦架構深度評估 (Defensive Architecture)</h4>
+      <h4>三、 生存防禦架構動態量化評估</h4>
       <div id="defenseAudit"></div>
 
-      <h4>四、 技能寶石串連與屬性相容性審查 (Gem Audit)</h4>
+      <h4>四、 偵測到的技能寶石與動態相容性檢查</h4>
       <div id="gemAudit"></div>
 
-      <h4>五、 AI 全方位綜合優化指引 (Action Plan)</h4>
+      <h4>五、 針對此 PoB 現況產出的動態優化指引</h4>
       <div id="actionPlan"></div>
     </div>
   </div>
@@ -144,7 +141,7 @@
       const resultBox = document.getElementById('resultBox');
 
       if (typeof pako === 'undefined') {
-        alert("系統錯誤：pako.js 程式庫未載入成功，請檢查網路連線！");
+        alert("系統錯誤：pako.js 未成功載入！");
         return;
       }
 
@@ -172,16 +169,16 @@
           throw new Error("XML 解析失敗，字串格式不正確。");
         }
 
-        // --- 1. 解析基礎資訊 ---
+        // --- 1. 動態讀取基本資料 ---
         const buildNode = xmlDoc.querySelector("Build");
         const playerNode = xmlDoc.querySelector("Player");
 
-        let level = "0";
+        let level = 1;
         let ascendName = "未昇華";
         let rawClassKey = "";
 
         if (buildNode) {
-          level = buildNode.getAttribute("level") || "0";
+          level = parseInt(buildNode.getAttribute("level")) || 1;
           ascendName = buildNode.getAttribute("ascendClassName") || buildNode.getAttribute("ascendClass") || "未昇華";
           rawClassKey = buildNode.getAttribute("className") || buildNode.getAttribute("class") || buildNode.getAttribute("classId");
         }
@@ -189,30 +186,32 @@
           rawClassKey = playerNode.getAttribute("className") || playerNode.getAttribute("class") || playerNode.getAttribute("classId");
         }
 
-        let className = classMapping[rawClassKey] || rawClassKey || "遊俠 (Ranger)";
+        let className = classMapping[rawClassKey] || rawClassKey || "未知職業";
 
-        // --- 2. 提取 PlayerStat 數據 ---
+        // --- 2. 徹底動態抓取 PlayerStat / Stat 數值字典 ---
         let statsMap = {};
-        xmlDoc.querySelectorAll("PlayerStat").forEach(stat => {
-          const statName = stat.getAttribute("stat");
+        xmlDoc.querySelectorAll("PlayerStat, Stat").forEach(stat => {
+          const name = stat.getAttribute("stat") || stat.getAttribute("name");
           const val = parseFloat(stat.getAttribute("value")) || 0;
-          if (statName) statsMap[statName] = val;
+          if (name) statsMap[name] = val;
         });
 
-        let life = statsMap["Life"] || statsMap["life"] || 4200;
-        let es = statsMap["EnergyShield"] || statsMap["energyShield"] || 0;
-        let str = statsMap["Str"] || statsMap["str"] || 250;
-        let dex = statsMap["Dex"] || statsMap["dex"] || 350;
-        let intVal = statsMap["Int"] || statsMap["int"] || 95;
-        let spellSuppressed = statsMap["SpellSuppressChance"] || statsMap["spellSuppressChance"] || 100;
+        // 完全動態抓取，若無對應標籤則預設為 0，絕不寫死假資料
+        let life = statsMap["Life"] || statsMap["life"] || 0;
+        let es = statsMap["EnergyShield"] || statsMap["energyShield"] || statsMap["Energy Shield"] || 0;
+        let str = statsMap["Str"] || statsMap["str"] || statsMap["Strength"] || 0;
+        let dex = statsMap["Dex"] || statsMap["dex"] || statsMap["Dexterity"] || 0;
+        let intVal = statsMap["Int"] || statsMap["int"] || statsMap["Intelligence"] || 0;
+        let spellSuppressed = statsMap["SpellSuppressChance"] || statsMap["spellSuppressChance"] || 0;
 
-        if (str === 250 && buildNode) {
-          str = parseInt(buildNode.getAttribute("targetStrength")) || str;
-          dex = parseInt(buildNode.getAttribute("targetDexterity")) || dex;
-          intVal = parseInt(buildNode.getAttribute("targetIntelligence")) || intVal;
+        // 備援抓取
+        if (str === 0 && buildNode) {
+          str = parseInt(buildNode.getAttribute("targetStrength")) || 0;
+          dex = parseInt(buildNode.getAttribute("targetDexterity")) || 0;
+          intVal = parseInt(buildNode.getAttribute("targetIntelligence")) || 0;
         }
 
-        // --- 3. 提取寶石 ---
+        // --- 3. 動態讀取寶石 ---
         const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
           name: gem.getAttribute("nameSpec") || gem.getAttribute("name"),
           level: gem.getAttribute("level")
@@ -220,8 +219,8 @@
 
         const uniqueGems = [...new Set(gems.map(g => g.name))];
 
-        // --- 4. 渲染 UI 標頭與數據方格 ---
-        document.getElementById('resTitle').innerText = `全方位深度剖析：${level} 級 ${className} (${ascendName})`;
+        // --- 4. 渲染 UI 標頭與數據方格 (完全依據動態讀取的數值呈現) ---
+        document.getElementById('resTitle').innerText = `動態解析報告：${level} 級 ${className} (${ascendName})`;
         document.getElementById('resMeta').innerHTML = `
           <span class="badge">職業：${className}</span>
           <span class="badge">昇華：${ascendName}</span>
@@ -229,74 +228,87 @@
           <span class="badge">偵測寶石總數：${gems.length} 顆</span>
         `;
 
+        // 動態門檻判定：高於 85 等時，生命低於 4200 才亮紅燈；若小於 85 等則採動態寬容標準
+        let lifeAlert = (level >= 85 && life > 0 && life < 4200);
+        let intAlert = (intVal > 0 && intVal < 111);
+        let suppressAlert = (spellSuppressed > 0 && spellSuppressed < 100);
+
         document.getElementById('statsGrid').innerHTML = `
-          <div class="stat-card"><div class="label">最大生命 (Life)</div><div class="value ${life < 4500 ? 'alert' : 'safe'}">${Math.round(life)}</div></div>
+          <div class="stat-card"><div class="label">最大生命 (Life)</div><div class="value ${lifeAlert ? 'alert' : 'safe'}">${Math.round(life)}</div></div>
           <div class="stat-card"><div class="label">能量護盾 (ES)</div><div class="value">${Math.round(es)}</div></div>
           <div class="stat-card"><div class="label">力量 (Str)</div><div class="value">${Math.round(str)}</div></div>
           <div class="stat-card"><div class="label">敏捷 (Dex)</div><div class="value">${Math.round(dex)}</div></div>
-          <div class="stat-card"><div class="label">智力 (Int)</div><div class="value ${intVal < 111 ? 'alert' : 'safe'}">${Math.round(intVal)}</div></div>
-          <div class="stat-card"><div class="label">法術壓抑 (Suppress)</div><div class="value ${spellSuppressed < 100 ? 'alert' : 'safe'}">${Math.round(spellSuppressed)}%</div></div>
+          <div class="stat-card"><div class="label">智力 (Int)</div><div class="value ${intAlert ? 'alert' : 'safe'}">${Math.round(intVal)}</div></div>
+          <div class="stat-card"><div class="label">法術壓抑 (Suppress)</div><div class="value ${suppressAlert ? 'alert' : 'safe'}">${Math.round(spellSuppressed)}%</div></div>
         `;
 
-        // --- 5. 生成深度分析：二、屬性瓶頸審查 ---
-        let attrHTML = `<div class="analysis-box ${intVal < 111 ? 'warning' : 'success'}">`;
-        if (intVal < 111) {
-          attrHTML += `<p><strong style="color: #f85149;">【智力致命瓶頸】當前智力僅有 ${Math.round(intVal)} (低於高階輔助寶石所需的 111 門檻)</strong></p>`;
-          attrHTML += `<ul>
-            <li><strong>天賦結構性缺陷：</strong> 游俠起手盤極度偏向右下角純敏捷區域，導致基礎智力極度匱乏。</li>
-            <li><strong>連帶連鎖反應：</strong> 許多高階藍色輔助寶石、法術技能或防禦光環（例如 Tempest Shield、高階法術抑止等）將會因智力不足而<strong>直接呈現紅字卡死、無法正常運作</strong>。</li>
-          </ul>`;
+        // --- 5. 動態生成分析內文 (根據當前輸入的 PoB 數據即時運算) ---
+        
+        // (1) 屬性動態審查
+        let attrHTML = `<div class="analysis-box ${intAlert ? 'warning' : 'success'}">`;
+        if (intVal > 0 && intVal < 111) {
+          attrHTML += `<p><strong style="color: #f85149;">【動態屬性警示】當前智力偵測值為 ${Math.round(intVal)} (低於 111 門檻)</strong></p>`;
+          attrHTML += `<p>系統偵測到此 PoB 的智力未達部分高等藍色輔助寶石的需求，配置時需注意是否會發生屬性不足而卡死的情況。</p>`;
         } else {
-          attrHTML += `<p><span style="color: #3fb950;">【屬性達標】當前智力為 ${Math.round(intVal)}，足以支撐絕大多數寶石需求。</span></p>`;
+          attrHTML += `<p><span style="color: #3fb950;">【屬性動態判定】當前智力為 ${Math.round(intVal)}，符合目前基礎門檻。</span></p>`;
         }
         attrHTML += `</div>`;
         document.getElementById('attributeAudit').innerHTML = attrHTML;
 
-        // --- 6. 生成深度分析：三、生存防禦架構 ---
+        // (2) 生存防禦動態審查
         let defHTML = `<div class="analysis-box info">`;
-        defHTML += `<p><strong>防禦層次綜合診斷（Defensive Layer Rating）</strong></p><ul>`;
+        defHTML += `<p><strong>防禦指標動態評估</strong></p><ul>`;
         if (spellSuppressed >= 100) {
-          defHTML += `<li><span style="color: #3fb950;">✔ 100% 法術壓抑滿壓：</span> 已達成極度優質的法術減傷能力，能穩定減免 50% 的承受法術傷害。</li>`;
+          defHTML += `<li><span style="color: #3fb950;">✔ 法術壓抑已達 100% 滿壓：</span> 具備優秀的法術減免效益。</li>`;
+        } else if (spellSuppressed > 0) {
+          defHTML += `<li><span style="color: #f85149;">⚠️ 法術壓抑未滿 (${Math.round(spellSuppressed)}%)：</span> 尚未達到滿壓狀態。</li>`;
         } else {
-          defHTML += `<li><span style="color: #f85149;">✘ 法術壓抑未滿 (${Math.round(spellSuppressed)}%)：</span> 面對高等異界圖的巨額法術傷害時仍具極高秒殺風險。</li>`;
+          defHTML += `<li><span>ℹ️ 無法術壓抑數據或未配置。</span></li>`;
         }
-        if (life < 4500) {
-          defHTML += `<li><span style="color: #f85149;">⚠️ 生命總血池偏低 (${Math.round(life)})：</span> 對於 ${level} 級的高階機體而言，4200 左右的血池處於危險邊緣，缺乏護甲或大量 ES 的防禦補強時，極易遭到連續物理擊中瞬殺。</li>`;
-        } else {
-          defHTML += `<li><span style="color: #3fb950;">✔ 生命總血池合格 (${Math.round(life)})。</span></li>`;
+
+        if (level >= 85) {
+          if (life > 0 && life < 4200) {
+            defHTML += `<li><span style="color: #f85149;">⚠️ 生命總池 (${Math.round(life)}) 在 ${level} 級環境偏低。</span></li>`;
+          } else if (life >= 4200) {
+            defHTML += `<li><span style="color: #3fb950;">✔ 生命總池 (${Math.round(life)}) 達到基準。</span></li>`;
+          }
         }
         defHTML += `</ul></div>`;
-        document.getElementById('deepDefenseAnalysis').innerHTML = defHTML;
+        document.getElementById('defenseAudit').innerHTML = defHTML;
 
-        // --- 7. 生成深度分析：四、技能寶石審查 ---
+        // (3) 寶石動態比對
         let gemHTML = `<div class="analysis-box warning"><ul>`;
         if (uniqueGems.length > 0) {
           uniqueGems.forEach(g => {
-            let warnText = "";
-            if ((g.includes("Shield") || g.includes("Frost") || g.includes("Spectre")) && intVal < 111) {
-              warnText = ` <span style="color: #f85149;">(⚠️ 屬性警告：此寶石智力需求較高，當前 ${Math.round(intVal)} 智力恐導致失效)</span>`;
+            let note = "";
+            if (intAlert && (g.includes("Shield") || g.includes("Support") || g.includes("Spell"))) {
+              note = ` <span style="color: #f85149;">(⚠️ 智力偏低，請留意配戴門檻)</span>`;
             }
-            gemHTML += `<li><strong>${g}</strong>${warnText}</li>`;
+            gemHTML += `<li><strong>${g}</strong>${note}</li>`;
           });
         } else {
-          gemHTML += `<li>未偵測到有效寶石。</li>`;
+          gemHTML += `<li>未讀取到有效的寶石清單。</li>`;
         }
         gemHTML += `</ul></div>`;
         document.getElementById('gemAudit').innerHTML = gemHTML;
 
-        // --- 8. 生成深度分析：五、AI 綜合優化指引 ---
+        // (4) 動態優化指引
         let planHTML = `<div class="analysis-box success"><ul>`;
-        planHTML += `<li><strong>1. 優先補足智力缺口：</strong> 建議在飾品（戒指、項鍊）尋找「+全屬性」或「+智力」的次要詞綴，或暫時在天賦盤配置 1~2 個 +30 智力的基礎過路節點。</li>`;
-        planHTML += `<li><strong>2. 提升有效血池 (EHP)：</strong> 嘗試將裝備上的生命詞綴洗高，目標將總血池拉抬至 4,800~5,000 以上。</li>`;
-        planHTML += `<li><strong>3. 檢查關鍵光環保留：</strong> 確認智力補足後，光環是否能正常啟動且未擠壓到主技能的施放魔力。</li>`;
+        if (intAlert) {
+          planHTML += `<li>建議透過裝備或天賦補足智力，以解鎖所有技能需求。</li>`;
+        }
+        if (level >= 85 && life < 4200 && life > 0) {
+          planHTML += `<li>建議提高防具的生命詞綴，增強高階地圖的生存能力。</li>`;
+        }
+        planHTML += `<li>此報告完全基於您當前輸入的 PoB 原始數據進行動態運算。</li>`;
         planHTML += `</ul></div>`;
         document.getElementById('actionPlan').innerHTML = planHTML;
 
         resultBox.style.display = 'block';
 
       } catch (err) {
-        console.error("解析失敗：", err);
-        alert("解碼過程發生錯誤：" + err.message);
+        console.error("解析錯誤：", err);
+        alert("PoB 解析失敗，請確認代碼是否完整：" + err.message);
       }
     }
   </script>
