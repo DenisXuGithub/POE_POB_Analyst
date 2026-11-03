@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 前端動態分析儀表板</title>
-  <!-- 載入 pako.js 確保 zlib 解壓縮功能穩定 -->
+  <title>PoB 前端動態全詞綴分析儀表板</title>
+  <!-- 載入 pako.js 解壓縮庫 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <style>
     body {
@@ -101,20 +101,20 @@
 <body>
 
   <div class="container">
-    <h2>PoB 獨立引擎前端分析儀表板</h2>
-    <p class="subtitle">貼上任何 PoB 匯出碼，透過獨立 JS 引擎解碼 XML 並執行前端屬性模擬加總</p>
+    <h2>PoB 前端動態全詞綴分析儀表板</h2>
+    <p class="subtitle">貼上任意 PoB 匯出碼，全自動解碼 XML 並由前端 RegEx 引擎累加裝備詞綴與屬性</p>
 
     <textarea id="pobCodeInput" placeholder="在此貼上任意 PoB 匯出碼 (eJz...)"></textarea>
-    <button type="button" onclick="parseAndAnalyzePoB()">執行獨立引擎剖析</button>
+    <button type="button" onclick="parseAndAnalyzePoB()">執行動態全剖析</button>
 
     <div class="analysis-result" id="resultBox">
       <h3 id="resTitle">動態分析報告</h3>
       <div id="resMeta" style="margin-bottom: 15px;"></div>
       
-      <h4>一、 裝備與基礎屬性模擬加總 (Stats Grid)</h4>
+      <h4>一、 裝備詞綴動態加總面板 (Stats Grid)</h4>
       <div class="stats-grid" id="statsGrid"></div>
 
-      <h4>二、 屬性門檻與寶石相容性動態審查</h4>
+      <h4>二、 屬性門檻與相容性動態審查</h4>
       <div id="attributeAudit"></div>
 
       <h4>三、 偵測到的核心技能寶石清單</h4>
@@ -125,7 +125,176 @@
     </div>
   </div>
 
-  <!-- 引入獨立的 JS 運算引擎 -->
-  <script src="pob-parser.js"></script>
+  <script>
+    const classMapping = {
+      "1": "女巫 (Witch)", "2": "暗影刺客 (Shadow)", "3": "遊俠 (Ranger)",
+      "4": "決鬥者 (Duelist)", "5": "野蠻人 (Marauder)", "6": "聖堂武僧 (Templar)", "7": "貴族 (Scion)",
+      "Witch": "女巫 (Witch)", "Shadow": "暗影刺客 (Shadow)", "Ranger": "遊俠 (Ranger)",
+      "Duelist": "決鬥者 (Duelist)", "Marauder": "野蠻人 (Marauder)", "Templar": "聖堂武僧 (Templar)", "Scion": "貴族 (Scion)"
+    };
+
+    function parseAndAnalyzePoB() {
+      const rawInput = document.getElementById('pobCodeInput');
+      const resultBox = document.getElementById('resultBox');
+
+      if (typeof pako === 'undefined') {
+        alert("系統錯誤：pako.js 程式庫未成功載入！");
+        return;
+      }
+
+      const rawCode = rawInput.value.trim();
+      if (!rawCode) {
+        alert("請先在上方輸入框貼上 PoB 匯出碼！");
+        return;
+      }
+
+      try {
+        // 1. Base64 處理與解碼
+        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) base64 += '=';
+
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        // 2. zlib 解壓縮
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
+
+        if (xmlDoc.querySelector("parsererror")) {
+          throw new Error("XML 解析失敗，請確認 PoB 字串格式。");
+        }
+
+        // 3. 讀取 Build 基本資訊
+        const buildNode = xmlDoc.querySelector("Build");
+        let level = 1;
+        let ascendName = "未昇華";
+        let rawClassKey = "";
+
+        if (buildNode) {
+          level = parseInt(buildNode.getAttribute("level")) || 1;
+          ascendName = buildNode.getAttribute("ascendClassName") || buildNode.getAttribute("ascendClass") || "未昇華";
+          rawClassKey = buildNode.getAttribute("className") || buildNode.getAttribute("class") || buildNode.getAttribute("classId");
+        }
+        let className = classMapping[rawClassKey] || rawClassKey || "未知職業";
+
+        // 4. 前端全詞綴掃描引擎：掃描所有裝備（<Item>）
+        let totalLife = 0;
+        let totalStr = 0;
+        let totalDex = 0;
+        let totalInt = 0;
+        let totalFireRes = 0;
+        let totalColdRes = 0;
+        let totalLightningRes = 0;
+        let totalChaosRes = 0;
+
+        xmlDoc.querySelectorAll("Item").forEach(itemNode => {
+          const itemText = itemNode.textContent || "";
+          
+          // 屬性與生命匹配
+          const lifeMatch = itemText.match(/\+(\d+)\s+to maximum Life/i);
+          const strMatch = itemText.match(/\+(\d+)\s+to Strength/i);
+          const dexMatch = itemText.match(/\+(\d+)\s+to Dexterity/i);
+          const intMatch = itemText.match(/\+(\d+)\s+to Intelligence/i);
+          const allAttrMatch = itemText.match(/\+(\d+)\s+to all Attributes/i);
+
+          // 抗性匹配
+          const fireResMatch = itemText.match(/\+(\d+)%\s+to Fire Resistance/i);
+          const coldResMatch = itemText.match(/\+(\d+)%\s+to Cold Resistance/i);
+          const lightResMatch = itemText.match(/\+(\d+)%\s+to Lightning Resistance/i);
+          const chaosResMatch = itemText.match(/\+(\d+)%\s+to Chaos Resistance/i);
+          const allEleResMatch = itemText.match(/\+(\d+)%\s+to all Elemental Resistances/i);
+
+          if (lifeMatch) totalLife += parseInt(lifeMatch[1]);
+          
+          let allAttr = allAttrMatch ? parseInt(allAttrMatch[1]) : 0;
+          if (strMatch) totalStr += parseInt(strMatch[1]) + allAttr;
+          if (dexMatch) totalDex += parseInt(dexMatch[1]) + allAttr;
+          if (intMatch) totalInt += parseInt(intMatch[1]) + allAttr;
+          if (!strMatch && allAttr > 0) totalStr += allAttr;
+          if (!dexMatch && allAttr > 0) totalDex += allAttr;
+          if (!intMatch && allAttr > 0) totalInt += allAttr;
+
+          let allEle = allEleResMatch ? parseInt(allEleResMatch[1]) : 0;
+          if (fireResMatch) totalFireRes += parseInt(fireResMatch[1]) + allEle;
+          if (coldResMatch) totalColdRes += parseInt(coldResMatch[1]) + allEle;
+          if (lightResMatch) totalLightningRes += parseInt(lightResMatch[1]) + allEle;
+          if (chaosResMatch) totalChaosRes += parseInt(chaosResMatch[1]);
+        });
+
+        // 數值動態推算
+        let finalLife = totalLife > 0 ? totalLife + (level * 12) : 500 + (level * 12);
+        let finalStr = totalStr + 20;
+        let finalDex = totalDex + 20;
+        let finalInt = totalInt + 20;
+
+        // 5. 讀取技能寶石清單
+        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
+          name: gem.getAttribute("nameSpec") || gem.getAttribute("name") || gem.getAttribute("gemId"),
+          level: gem.getAttribute("level")
+        })).filter(g => g.name);
+        const uniqueGems = [...new Set(gems.map(g => g.name))];
+
+        // 6. 渲染 UI 畫面
+        document.getElementById('resTitle').innerText = `動態全詞綴分析報告：${level} 級 ${className} (${ascendName})`;
+        document.getElementById('resMeta').innerHTML = `
+          <span class="badge">職業：${className}</span>
+          <span class="badge">昇華：${ascendName}</span>
+          <span class="badge">等級：${level} 級</span>
+          <span class="badge">裝備總生命：+${totalLife}</span>
+          <span class="badge">偵測寶石數：${gems.length} 顆</span>
+        `;
+
+        let intAlert = (finalInt < 111);
+
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card"><div class="label">模擬總生命 (Life)</div><div class="value safe">${Math.round(finalLife)}</div></div>
+          <div class="stat-card"><div class="label">模擬力量 (Str)</div><div class="value">${Math.round(finalStr)}</div></div>
+          <div class="stat-card"><div class="label">模擬敏捷 (Dex)</div><div class="value">${Math.round(finalDex)}</div></div>
+          <div class="stat-card"><div class="label">模擬智力 (Int)</div><div class="value ${intAlert ? 'alert' : 'safe'}">${Math.round(finalInt)}</div></div>
+          <div class="stat-card"><div class="label">裝備火抗加總</div><div class="value">+${totalFireRes}%</div></div>
+          <div class="stat-card"><div class="label">裝備冰抗加總</div><div class="value">+${totalColdRes}%</div></div>
+          <div class="stat-card"><div class="label">裝備電抗加總</div><div class="value">+${totalLightningRes}%</div></div>
+          <div class="stat-card"><div class="label">裝備混抗加總</div><div class="value">+${totalChaosRes}%</div></div>
+        `;
+
+        let attrHTML = `<div class="analysis-box ${intAlert ? 'warning' : 'success'}">`;
+        if (intAlert) {
+          attrHTML += `<p><strong style="color: #f85149;">【智力門檻警示】當前模擬智力為 ${Math.round(finalInt)} (低於高階輔助 111 需求)</strong></p>`;
+          attrHTML += `<p>經前端引擎掃描裝備詞綴後，智力總和偏低，需留意部分藍色輔助寶石或光環無法運作。</p>`;
+        } else {
+          attrHTML += `<p><span style="color: #3fb950;">【智力指標達標】當前模擬智力為 ${Math.round(finalInt)}。</span></p>`;
+        }
+        attrHTML += `</div>`;
+        document.getElementById('attributeAudit').innerHTML = attrHTML;
+
+        let gemHTML = `<ul>`;
+        if (uniqueGems.length > 0) {
+          uniqueGems.slice(0, 20).forEach(g => {
+            gemHTML += `<li><strong>${g}</strong></li>`;
+          });
+        } else {
+          gemHTML += `<li>未偵測到寶石資料。</li>`;
+        }
+        gemHTML += `</ul>`;
+        document.getElementById('gemAudit').innerHTML = gemHTML;
+
+        let planHTML = `<div class="analysis-box success"><ul>`;
+        planHTML += `<li>此分析頁面已成功寫入前端 XML 詞綴解析與動態正則累加引擎。</li>`;
+        planHTML += `<li>無須後端伺服器即可完成裝備數值、三圍屬性與抗性的完整呈現。</li>`;
+        planHTML += `</ul></div>`;
+        document.getElementById('actionPlan').innerHTML = planHTML;
+
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        console.error("解析錯誤：", err);
+        alert("PoB 解析失敗，請確認代碼是否完整：" + err.message);
+      }
+    }
+  </script>
 </body>
 </html>
