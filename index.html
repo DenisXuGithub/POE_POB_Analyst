@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 前端動態全詞綴分析儀表板</title>
-  <!-- 載入 pako.js 解壓縮庫 -->
+  <title>我的自訂 PoB 分析儀表板</title>
+  <!-- 載入 pako.js 處理 zlib 解壓縮 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0d1117;
-      color: #c9d1d9;
+      background-color: #0b0f19;
+      color: #e2e8f0;
       margin: 0;
       padding: 30px;
       display: flex;
@@ -18,28 +18,28 @@
       align-items: center;
     }
     .container { width: 100%; max-width: 1000px; }
-    h2 { color: #f0a334; margin-bottom: 5px; }
-    p.subtitle { color: #8b949e; margin-top: 0; margin-bottom: 20px; font-size: 14px; }
+    h2 { color: #38bdf8; margin-bottom: 5px; }
+    p.subtitle { color: #94a3b8; margin-top: 0; margin-bottom: 20px; font-size: 14px; }
     textarea {
       width: 100%;
       height: 120px;
-      background-color: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      color: #e1e4e8;
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f8fafc;
       font-size: 13px;
       padding: 12px;
       resize: vertical;
       box-sizing: border-box;
       font-family: monospace;
     }
-    textarea:focus { border-color: #f0a334; outline: none; }
+    textarea:focus { border-color: #38bdf8; outline: none; }
     button {
-      margin-top: 10px;
+      margin-top: 12px;
       padding: 12px 24px;
-      background-color: #238636;
+      background-color: #0284c7;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       color: white;
       font-weight: bold;
       cursor: pointer;
@@ -47,110 +47,107 @@
       float: right;
       transition: background 0.2s;
     }
-    button:hover { background-color: #2ea043; }
+    button:hover { background-color: #0369a1; }
     
-    .analysis-result {
+    .dashboard {
       width: 100%;
       max-width: 1000px;
-      background-color: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 8px;
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
       padding: 25px;
-      margin-top: 20px;
+      margin-top: 30px;
       box-sizing: border-box;
-      line-height: 1.6;
       display: none;
     }
-    .analysis-result h3 { color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
-    .analysis-result h4 { color: #f0a334; margin-top: 25px; margin-bottom: 10px; border-left: 4px solid #f0a334; padding-left: 10px; }
+    .dashboard h3 { color: #38bdf8; margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+    .dashboard h4 { color: #f59e0b; margin-top: 25px; margin-bottom: 10px; border-left: 4px solid #f59e0b; padding-left: 10px; }
     
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
       margin: 15px 0;
     }
     .stat-card {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      padding: 12px;
-      border-radius: 6px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 15px;
+      border-radius: 8px;
       text-align: center;
     }
-    .stat-card .label { font-size: 12px; color: #8b949e; }
-    .stat-card .value { font-size: 18px; font-weight: bold; color: #f0a334; margin-top: 4px; }
-    .stat-card .value.alert { color: #f85149; }
-    .stat-card .value.safe { color: #3fb950; }
+    .stat-card .label { font-size: 12px; color: #94a3b8; }
+    .stat-card .value { font-size: 20px; font-weight: bold; color: #38bdf8; margin-top: 6px; }
+    .stat-card .value.alert { color: #ef4444; }
+    .stat-card .value.safe { color: #22c55e; }
     
-    .analysis-box {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: 15px;
+    .ai-box {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 16px;
       margin-bottom: 15px;
+      line-height: 1.6;
     }
-    .analysis-box.warning { border-left: 4px solid #f85149; }
-    .analysis-box.info { border-left: 4px solid #58a6ff; }
-    .analysis-box.success { border-left: 4px solid #3fb950; }
+    .ai-box.warning { border-left: 4px solid #ef4444; }
+    .ai-box.success { border-left: 4px solid #22c55e; }
+    .ai-box.info { border-left: 4px solid #38bdf8; }
     
-    .badge { background: #21262d; border: 1px solid #30363d; padding: 4px 10px; border-radius: 4px; color: #f0a334; font-size: 13px; margin-right: 6px; }
+    .badge { background: #334155; padding: 4px 10px; border-radius: 6px; color: #f8fafc; font-size: 13px; margin-right: 8px; }
     ul { padding-left: 20px; margin-top: 5px; }
-    li { margin-bottom: 8px; }
+    li { margin-bottom: 8px; color: #cbd5e1; }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <h2>PoB 前端動態全詞綴分析儀表板</h2>
-    <p class="subtitle">貼上任意 PoB 匯出碼，全自動解碼 XML 並由前端 RegEx 引擎累加裝備詞綴與屬性</p>
+    <h2>PoB 自訂 UI 深度解析儀表板</h2>
+    <p class="subtitle">貼上任意 PoB 匯出碼，前端將自動解密 XML、解析裝備與技能，並由內嵌 AI 邏輯產出健檢報告</p>
 
-    <textarea id="pobCodeInput" placeholder="在此貼上任意 PoB 匯出碼 (eJz...)"></textarea>
-    <button type="button" onclick="parseAndAnalyzePoB()">執行動態全剖析</button>
+    <textarea id="pobInput" placeholder="請在此貼上 PoB 匯出碼 (eJz...)"></textarea>
+    <button type="button" onclick="analyzePoB()">開始解析與 AI 健檢</button>
 
-    <div class="analysis-result" id="resultBox">
-      <h3 id="resTitle">動態分析報告</h3>
-      <div id="resMeta" style="margin-bottom: 15px;"></div>
+    <div class="dashboard" id="outputDashboard">
+      <h3 id="charTitle">角色分析報告</h3>
+      <div id="charMeta" style="margin-bottom: 15px;"></div>
       
-      <h4>一、 裝備詞綴動態加總面板 (Stats Grid)</h4>
+      <h4>1. 核心裝備與基礎數值模擬</h4>
       <div class="stats-grid" id="statsGrid"></div>
 
-      <h4>二、 屬性門檻與相容性動態審查</h4>
-      <div id="attributeAudit"></div>
+      <h4>2. AI 智慧防禦與生存健檢</h4>
+      <div id="defenseAudit"></div>
 
-      <h4>三、 偵測到的核心技能寶石清單</h4>
+      <h4>3. 技能寶石串連與配置摘要</h4>
       <div id="gemAudit"></div>
 
-      <h4>四、 AI 綜合優化指引</h4>
+      <h4>4. 流派優化建議與下一步</h4>
       <div id="actionPlan"></div>
     </div>
   </div>
 
   <script>
-    const classMapping = {
+    const classMap = {
       "1": "女巫 (Witch)", "2": "暗影刺客 (Shadow)", "3": "遊俠 (Ranger)",
       "4": "決鬥者 (Duelist)", "5": "野蠻人 (Marauder)", "6": "聖堂武僧 (Templar)", "7": "貴族 (Scion)",
-      "Witch": "女巫 (Witch)", "Shadow": "暗影刺客 (Shadow)", "Ranger": "遊俠 (Ranger)",
-      "Duelist": "決鬥者 (Duelist)", "Marauder": "野蠻人 (Marauder)", "Templar": "聖堂武僧 (Templar)", "Scion": "貴族 (Scion)"
+      "Witch": "女巫", "Shadow": "暗影", "Ranger": "遊俠", "Duelist": "決鬥者", "Marauder": "野蠻人", "Templar": "聖堂", "Scion": "貴族"
     };
 
-    function parseAndAnalyzePoB() {
-      const rawInput = document.getElementById('pobCodeInput');
-      const resultBox = document.getElementById('resultBox');
+    function analyzePoB() {
+      const inputVal = document.getElementById('pobInput').value.trim();
+      const dashboard = document.getElementById('outputDashboard');
 
       if (typeof pako === 'undefined') {
-        alert("系統錯誤：pako.js 程式庫未成功載入！");
+        alert("pako.js 尚未載入！");
         return;
       }
-
-      const rawCode = rawInput.value.trim();
-      if (!rawCode) {
-        alert("請先在上方輸入框貼上 PoB 匯出碼！");
+      if (!inputVal) {
+        alert("請先貼上 PoB 代碼！");
         return;
       }
 
       try {
-        // 1. Base64 處理與解碼
-        let base64 = rawCode.replace(/-/g, '+').replace(/_/g, '/');
+        // 1. Base64 轉換與 zlib 解壓縮
+        let base64 = inputVal.replace(/-/g, '+').replace(/_/g, '/');
         while (base64.length % 4 !== 0) base64 += '=';
 
         const binaryStr = atob(base64);
@@ -159,140 +156,95 @@
           bytes[i] = binaryStr.charCodeAt(i);
         }
 
-        // 2. zlib 解壓縮
         const decompressed = pako.inflate(bytes, { to: 'string' });
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(decompressed, "text/xml");
 
         if (xmlDoc.querySelector("parsererror")) {
-          throw new Error("XML 解析失敗，請確認 PoB 字串格式。");
+          throw new Error("XML 結構解析失敗，請確認代碼是否完整。");
         }
 
-        // 3. 讀取 Build 基本資訊
+        // 2. 提取基本資訊 (<Build>)
         const buildNode = xmlDoc.querySelector("Build");
-        let level = 1;
-        let ascendName = "未昇華";
-        let rawClassKey = "";
+        let level = buildNode ? (buildNode.getAttribute("level") || "1") : "1";
+        let ascendClass = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
+        let rawClass = buildNode ? (buildNode.getAttribute("className") || "") : "";
+        let className = classMap[rawClass] || rawClass || "流亡者";
 
-        if (buildNode) {
-          level = parseInt(buildNode.getAttribute("level")) || 1;
-          ascendName = buildNode.getAttribute("ascendClassName") || buildNode.getAttribute("ascendClass") || "未昇華";
-          rawClassKey = buildNode.getAttribute("className") || buildNode.getAttribute("class") || buildNode.getAttribute("classId");
-        }
-        let className = classMapping[rawClassKey] || rawClassKey || "未知職業";
-
-        // 4. 前端全詞綴掃描引擎：掃描所有裝備（<Item>）
+        // 3. 提取裝備與詞綴模擬加總 (<Item>)
         let totalLife = 0;
-        let totalStr = 0;
-        let totalDex = 0;
-        let totalInt = 0;
-        let totalFireRes = 0;
-        let totalColdRes = 0;
-        let totalLightningRes = 0;
-        let totalChaosRes = 0;
+        let totalRes = 0;
+        let itemCount = 0;
 
-        xmlDoc.querySelectorAll("Item").forEach(itemNode => {
-          const itemText = itemNode.textContent || "";
-          
-          // 屬性與生命匹配
-          const lifeMatch = itemText.match(/\+(\d+)\s+to maximum Life/i);
-          const strMatch = itemText.match(/\+(\d+)\s+to Strength/i);
-          const dexMatch = itemText.match(/\+(\d+)\s+to Dexterity/i);
-          const intMatch = itemText.match(/\+(\d+)\s+to Intelligence/i);
-          const allAttrMatch = itemText.match(/\+(\d+)\s+to all Attributes/i);
-
-          // 抗性匹配
-          const fireResMatch = itemText.match(/\+(\d+)%\s+to Fire Resistance/i);
-          const coldResMatch = itemText.match(/\+(\d+)%\s+to Cold Resistance/i);
-          const lightResMatch = itemText.match(/\+(\d+)%\s+to Lightning Resistance/i);
-          const chaosResMatch = itemText.match(/\+(\d+)%\s+to Chaos Resistance/i);
-          const allEleResMatch = itemText.match(/\+(\d+)%\s+to all Elemental Resistances/i);
-
+        xmlDoc.querySelectorAll("Item").forEach(item => {
+          itemCount++;
+          let text = item.textContent || "";
+          let lifeMatch = text.match(/\+(\d+)\s+to maximum Life/i);
+          let resMatch = text.match(/\+(\d+)%\s+to.*Resist/i);
           if (lifeMatch) totalLife += parseInt(lifeMatch[1]);
-          
-          let allAttr = allAttrMatch ? parseInt(allAttrMatch[1]) : 0;
-          if (strMatch) totalStr += parseInt(strMatch[1]) + allAttr;
-          if (dexMatch) totalDex += parseInt(dexMatch[1]) + allAttr;
-          if (intMatch) totalInt += parseInt(intMatch[1]) + allAttr;
-          if (!strMatch && allAttr > 0) totalStr += allAttr;
-          if (!dexMatch && allAttr > 0) totalDex += allAttr;
-          if (!intMatch && allAttr > 0) totalInt += allAttr;
-
-          let allEle = allEleResMatch ? parseInt(allEleResMatch[1]) : 0;
-          if (fireResMatch) totalFireRes += parseInt(fireResMatch[1]) + allEle;
-          if (coldResMatch) totalColdRes += parseInt(coldResMatch[1]) + allEle;
-          if (lightResMatch) totalLightningRes += parseInt(lightResMatch[1]) + allEle;
-          if (chaosResMatch) totalChaosRes += parseInt(chaosResMatch[1]);
+          if (resMatch) totalRes += parseInt(resMatch[1]);
         });
 
-        // 數值動態推算
-        let finalLife = totalLife > 0 ? totalLife + (level * 12) : 500 + (level * 12);
-        let finalStr = totalStr + 20;
-        let finalDex = totalDex + 20;
-        let finalInt = totalInt + 20;
+        // 4. 提取技能寶石 (<Gem>)
+        let gems = [];
+        xmlDoc.querySelectorAll("Gem").forEach(gem => {
+          let name = gem.getAttribute("nameSpec") || gem.getAttribute("name");
+          if (name && !gems.includes(name)) gems.push(name);
+        });
 
-        // 5. 讀取技能寶石清單
-        const gems = Array.from(xmlDoc.querySelectorAll("Gem")).map(gem => ({
-          name: gem.getAttribute("nameSpec") || gem.getAttribute("name") || gem.getAttribute("gemId"),
-          level: gem.getAttribute("level")
-        })).filter(g => g.name);
-        const uniqueGems = [...new Set(gems.map(g => g.name))];
-
-        // 6. 渲染 UI 畫面
-        document.getElementById('resTitle').innerText = `動態全詞綴分析報告：${level} 級 ${className} (${ascendName})`;
-        document.getElementById('resMeta').innerHTML = `
+        // 5. 渲染自訂 UI
+        document.getElementById('charTitle').innerText = `解析結果：${level} 級 ${className} (${ascendClass})`;
+        document.getElementById('charMeta').innerHTML = `
           <span class="badge">職業：${className}</span>
-          <span class="badge">昇華：${ascendName}</span>
-          <span class="badge">等級：${level} 級</span>
-          <span class="badge">裝備總生命：+${totalLife}</span>
-          <span class="badge">偵測寶石數：${gems.length} 顆</span>
+          <span class="badge">昇華：${ascendClass}</span>
+          <span class="badge">等級：${level}</span>
+          <span class="badge">裝備總數：${itemCount} 件</span>
         `;
 
-        let intAlert = (finalInt < 111);
+        // 模擬數值計算
+        let estLife = parseInt(level) * 12 + totalLife + 500;
+        let lifeAlert = estLife < 3500 && parseInt(level) > 80;
 
         document.getElementById('statsGrid').innerHTML = `
-          <div class="stat-card"><div class="label">模擬總生命 (Life)</div><div class="value safe">${Math.round(finalLife)}</div></div>
-          <div class="stat-card"><div class="label">模擬力量 (Str)</div><div class="value">${Math.round(finalStr)}</div></div>
-          <div class="stat-card"><div class="label">模擬敏捷 (Dex)</div><div class="value">${Math.round(finalDex)}</div></div>
-          <div class="stat-card"><div class="label">模擬智力 (Int)</div><div class="value ${intAlert ? 'alert' : 'safe'}">${Math.round(finalInt)}</div></div>
-          <div class="stat-card"><div class="label">裝備火抗加總</div><div class="value">+${totalFireRes}%</div></div>
-          <div class="stat-card"><div class="label">裝備冰抗加總</div><div class="value">+${totalColdRes}%</div></div>
-          <div class="stat-card"><div class="label">裝備電抗加總</div><div class="value">+${totalLightningRes}%</div></div>
-          <div class="stat-card"><div class="label">裝備混抗加總</div><div class="value">+${totalChaosRes}%</div></div>
+          <div class="stat-card"><div class="label">估算總生命 (Est. Life)</div><div class="value ${lifeAlert ? 'alert' : 'safe'}">${estLife}</div></div>
+          <div class="stat-card"><div class="label">裝備生命加總</div><div class="value">+${totalLife}</div></div>
+          <div class="stat-card"><div class="label">抗性詞綴總量</div><div class="value">~${totalRes}%</div></div>
+          <div class="stat-card"><div class="label">已偵測寶石種類</div><div class="value">${gems.length} 種</div></div>
         `;
 
-        let attrHTML = `<div class="analysis-box ${intAlert ? 'warning' : 'success'}">`;
-        if (intAlert) {
-          attrHTML += `<p><strong style="color: #f85149;">【智力門檻警示】當前模擬智力為 ${Math.round(finalInt)} (低於高階輔助 111 需求)</strong></p>`;
-          attrHTML += `<p>經前端引擎掃描裝備詞綴後，智力總和偏低，需留意部分藍色輔助寶石或光環無法運作。</p>`;
+        // AI 智慧防禦分析
+        let defHTML = `<div class="ai-box ${lifeAlert ? 'warning' : 'success'}">`;
+        if (lifeAlert) {
+          defHTML += `<p><strong>⚠️ 生存血池偏低警告：</strong>當前等級為 ${level} 級，但估算生命僅有 ${estLife}。在高階異界地圖中容易遭受秒殺，建議優先在防具上補足最大生命詞綴。</p>`;
         } else {
-          attrHTML += `<p><span style="color: #3fb950;">【智力指標達標】當前模擬智力為 ${Math.round(finalInt)}。</span></p>`;
+          defHTML += `<p><strong>✔ 生存基礎健康：</strong>當前血池估算達 ${estLife}，符合基礎生存標準。</p>`;
         }
-        attrHTML += `</div>`;
-        document.getElementById('attributeAudit').innerHTML = attrHTML;
+        defHTML += `</div>`;
+        document.getElementById('defenseAudit').innerHTML = defHTML;
 
-        let gemHTML = `<ul>`;
-        if (uniqueGems.length > 0) {
-          uniqueGems.slice(0, 20).forEach(g => {
-            gemHTML += `<li><strong>${g}</strong></li>`;
-          });
+        // 寶石列表
+        let gemHTML = `<div class="ai-box info"><ul>`;
+        if (gems.length > 0) {
+          gems.slice(0, 12).forEach(g => { gemHTML += `<li>${g}</li>`; });
         } else {
-          gemHTML += `<li>未偵測到寶石資料。</li>`;
+          gemHTML += `<li>未在 XML 中讀取到有效寶石。</li>`;
         }
-        gemHTML += `</ul>`;
+        gemHTML += `</ul></div>`;
         document.getElementById('gemAudit').innerHTML = gemHTML;
 
-        let planHTML = `<div class="analysis-box success"><ul>`;
-        planHTML += `<li>此分析頁面已成功寫入前端 XML 詞綴解析與動態正則累加引擎。</li>`;
-        planHTML += `<li>無須後端伺服器即可完成裝備數值、三圍屬性與抗性的完整呈現。</li>`;
+        // AI 優化建議
+        let planHTML = `<div class="ai-box success"><ul>`;
+        planHTML += `<li>確認三大元素抗性是否皆已達到 75% 滿抗。</li>`;
+        planHTML += `<li>檢查核心輸出技能是否已完成 6 連（6-Link）配置。</li>`;
+        planHTML += `<li>此介面完全由您自己的前端 UI 進行渲染，可自由修改 CSS 樣式與排版。</li>`;
         planHTML += `</ul></div>`;
         document.getElementById('actionPlan').innerHTML = planHTML;
 
-        resultBox.style.display = 'block';
+        dashboard.style.display = 'block';
 
       } catch (err) {
-        console.error("解析錯誤：", err);
-        alert("PoB 解析失敗，請確認代碼是否完整：" + err.message);
+        console.error(err);
+        alert("解析失敗，請確認代碼是否正確：" + err.message);
       }
     }
   </script>
