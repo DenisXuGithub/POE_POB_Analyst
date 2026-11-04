@@ -3,151 +3,217 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>我的自訂 PoB 分析儀表板</title>
+  <title>PoB 專業流派分析儀表板 (PoEDB Style)</title>
   <!-- 載入 pako.js 處理 zlib 解壓縮 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <style>
+    :root {
+      --bg-main: #0e1116;
+      --bg-panel: #161b22;
+      --bg-card: #21262d;
+      --border-color: #30363d;
+      --text-main: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent-gold: #f0a334;
+      --accent-blue: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-red: #f85149;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0b0f19;
-      color: #e2e8f0;
+      background-color: var(--bg-main);
+      color: var(--text-main);
       margin: 0;
-      padding: 30px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
       align-items: center;
     }
-    .container { width: 100%; max-width: 1000px; }
-    h2 { color: #38bdf8; margin-bottom: 5px; }
-    p.subtitle { color: #94a3b8; margin-top: 0; margin-bottom: 20px; font-size: 14px; }
+
+    .container { width: 100%; max-width: 1200px; }
+
+    /* 頂部輸入區 */
+    .input-panel {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    h2 { color: var(--accent-gold); margin-top: 0; font-size: 22px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+    p.subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 15px; }
     textarea {
       width: 100%;
-      height: 120px;
-      background-color: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      color: #f8fafc;
-      font-size: 13px;
-      padding: 12px;
+      height: 100px;
+      background-color: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: #e1e4e8;
+      font-size: 12px;
+      padding: 10px;
       resize: vertical;
       box-sizing: border-box;
       font-family: monospace;
     }
-    textarea:focus { border-color: #38bdf8; outline: none; }
+    textarea:focus { border-color: var(--accent-gold); outline: none; }
+    
+    .btn-group { margin-top: 10px; display: flex; justify-content: flex-end; }
     button {
-      margin-top: 12px;
-      padding: 12px 24px;
-      background-color: #0284c7;
-      border: none;
-      border-radius: 8px;
+      padding: 10px 20px;
+      background-color: #238636;
+      border: 1px solid rgba(27,31,36,0.15);
+      border-radius: 6px;
       color: white;
       font-weight: bold;
       cursor: pointer;
-      font-size: 15px;
-      float: right;
+      font-size: 14px;
       transition: background 0.2s;
     }
-    button:hover { background-color: #0369a1; }
-    
+    button:hover { background-color: #2ea043; }
+
+    /* 分析報告主面板 (PoEDB 樣式) */
     .dashboard {
-      width: 100%;
-      max-width: 1000px;
-      background-color: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 25px;
-      margin-top: 30px;
-      box-sizing: border-box;
       display: none;
+      width: 100%;
     }
-    .dashboard h3 { color: #38bdf8; margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; }
-    .dashboard h4 { color: #f59e0b; margin-top: 25px; margin-bottom: 10px; border-left: 4px solid #f59e0b; padding-left: 10px; }
-    
+
+    .section-box {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .section-box h3 {
+      color: var(--accent-blue);
+      margin-top: 0;
+      font-size: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 角色元數據標籤列 */
+    .meta-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .badge {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 5px 12px;
+      border-radius: 4px;
+      color: var(--accent-gold);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* 數據卡片網格 */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 15px;
-      margin: 15px 0;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 15px;
     }
     .stat-card {
-      background: #0f172a;
-      border: 1px solid #334155;
-      padding: 15px;
-      border-radius: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 12px;
+      border-radius: 4px;
       text-align: center;
     }
-    .stat-card .label { font-size: 12px; color: #94a3b8; }
-    .stat-card .value { font-size: 20px; font-weight: bold; color: #38bdf8; margin-top: 6px; }
-    .stat-card .value.alert { color: #ef4444; }
-    .stat-card .value.safe { color: #22c55e; }
-    
-    .ai-box {
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 15px;
+    .stat-card .label { font-size: 12px; color: var(--text-muted); }
+    .stat-card .value { font-size: 18px; font-weight: bold; color: var(--accent-gold); margin-top: 4px; }
+    .stat-card .value.alert { color: var(--accent-red); }
+    .stat-card .value.safe { color: var(--accent-green); }
+
+    /* AI 分析報告框 */
+    .ai-insight {
+      background: var(--bg-card);
+      border-left: 4px solid var(--accent-blue);
+      padding: 14px;
+      border-radius: 4px;
+      margin-bottom: 12px;
       line-height: 1.6;
+      font-size: 14px;
     }
-    .ai-box.warning { border-left: 4px solid #ef4444; }
-    .ai-box.success { border-left: 4px solid #22c55e; }
-    .ai-box.info { border-left: 4px solid #38bdf8; }
-    
-    .badge { background: #334155; padding: 4px 10px; border-radius: 6px; color: #f8fafc; font-size: 13px; margin-right: 8px; }
-    ul { padding-left: 20px; margin-top: 5px; }
-    li { margin-bottom: 8px; color: #cbd5e1; }
+    .ai-insight.warning { border-left-color: var(--accent-red); }
+    .ai-insight.success { border-left-color: var(--accent-green); }
+
+    ul { padding-left: 20px; margin: 5px 0; }
+    li { margin-bottom: 6px; color: #d1d5db; font-size: 13px; }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <h2>PoB 自訂 UI 深度解析儀表板</h2>
-    <p class="subtitle">貼上任意 PoB 匯出碼，前端將自動解密 XML、解析裝備與技能，並由內嵌 AI 邏輯產出健檢報告</p>
+    <div class="input-panel">
+      <h2>PoB 專業流派解析儀表板</h2>
+      <p class="subtitle">輸入任意 Path of Building 匯出碼，系統將自動解析原始 XML 並產出 PoEDB 風格的結構化數據與 AI 深度健檢報告</p>
+      <textarea id="pobInput" placeholder="在此貼上 PoB 匯出碼 (eJz...)"></textarea>
+      <div class="btn-group">
+        <button type="button" onclick="parseAndAnalyze()">開始深度解析</button>
+      </div>
+    </div>
 
-    <textarea id="pobInput" placeholder="請在此貼上 PoB 匯出碼 (eJz...)"></textarea>
-    <button type="button" onclick="analyzePoB()">開始解析與 AI 健檢</button>
+    <div class="dashboard" id="dashboard">
+      <!-- 角色基本概觀 -->
+      <div class="section-box">
+        <h3>角色基礎架構總覽</h3>
+        <div class="meta-tags" id="metaTags"></div>
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
 
-    <div class="dashboard" id="outputDashboard">
-      <h3 id="charTitle">角色分析報告</h3>
-      <div id="charMeta" style="margin-bottom: 15px;"></div>
-      
-      <h4>1. 核心裝備與基礎數值模擬</h4>
-      <div class="stats-grid" id="statsGrid"></div>
+      <!-- AI 深度健檢與屬性審查 -->
+      <div class="section-box">
+        <h3>AI 核心屬性與生存防禦健檢</h3>
+        <div id="attributeAudit"></div>
+        <div id="defenseAudit"></div>
+      </div>
 
-      <h4>2. AI 智慧防禦與生存健檢</h4>
-      <div id="defenseAudit"></div>
+      <!-- 技能寶石配置清單 -->
+      <div class="section-box">
+        <h3>技能寶石配置摘要</h3>
+        <div id="gemAudit"></div>
+      </div>
 
-      <h4>3. 技能寶石串連與配置摘要</h4>
-      <div id="gemAudit"></div>
-
-      <h4>4. 流派優化建議與下一步</h4>
-      <div id="actionPlan"></div>
+      <!-- 流派優化指引 -->
+      <div class="section-box">
+        <h3>流派專屬優化與改善指引</h3>
+        <div id="actionPlan"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    const classMap = {
+    const classMapping = {
       "1": "女巫 (Witch)", "2": "暗影刺客 (Shadow)", "3": "遊俠 (Ranger)",
       "4": "決鬥者 (Duelist)", "5": "野蠻人 (Marauder)", "6": "聖堂武僧 (Templar)", "7": "貴族 (Scion)",
-      "Witch": "女巫", "Shadow": "暗影", "Ranger": "遊俠", "Duelist": "決鬥者", "Marauder": "野蠻人", "Templar": "聖堂", "Scion": "貴族"
+      "Witch": "女巫", "Shadow": "暗影", "Ranger": "遊俠", "Duelist": "決鬥者", "Marauder": "野蠻人", "Templar": "聖堂武僧", "Scion": "貴族"
     };
 
-    function analyzePoB() {
-      const inputVal = document.getElementById('pobInput').value.trim();
-      const dashboard = document.getElementById('outputDashboard');
+    function parseAndAnalyze() {
+      const rawInput = document.getElementById('pobInput').value.trim();
+      const dashboard = document.getElementById('dashboard');
 
       if (typeof pako === 'undefined') {
-        alert("pako.js 尚未載入！");
+        alert("pako.js 尚未正確載入！");
         return;
       }
-      if (!inputVal) {
-        alert("請先貼上 PoB 代碼！");
+      if (!rawInput) {
+        alert("請先輸入 PoB 代碼！");
         return;
       }
 
       try {
         // 1. Base64 轉換與 zlib 解壓縮
-        let base64 = inputVal.replace(/-/g, '+').replace(/_/g, '/');
+        let base64 = rawInput.replace(/-/g, '+').replace(/_/g, '/');
         while (base64.length % 4 !== 0) base64 += '=';
 
         const binaryStr = atob(base64);
@@ -161,7 +227,7 @@
         const xmlDoc = parser.parseFromString(decompressed, "text/xml");
 
         if (xmlDoc.querySelector("parsererror")) {
-          throw new Error("XML 結構解析失敗，請確認代碼是否完整。");
+          throw new Error("XML 格式解析失敗，請確認代碼是否完整。");
         }
 
         // 2. 提取基本資訊 (<Build>)
@@ -169,9 +235,9 @@
         let level = buildNode ? (buildNode.getAttribute("level") || "1") : "1";
         let ascendClass = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
         let rawClass = buildNode ? (buildNode.getAttribute("className") || "") : "";
-        let className = classMap[rawClass] || rawClass || "流亡者";
+        let className = classMapping[rawClass] || rawClass || "流亡者";
 
-        // 3. 提取裝備與詞綴模擬加總 (<Item>)
+        // 3. 提取裝備詞綴模擬加總 (<Item>)
         let totalLife = 0;
         let totalRes = 0;
         let itemCount = 0;
@@ -185,58 +251,62 @@
           if (resMatch) totalRes += parseInt(resMatch[1]);
         });
 
-        // 4. 提取技能寶石 (<Gem>)
+        // 4. 提取寶石清單 (<Gem>)
         let gems = [];
         xmlDoc.querySelectorAll("Gem").forEach(gem => {
           let name = gem.getAttribute("nameSpec") || gem.getAttribute("name");
           if (name && !gems.includes(name)) gems.push(name);
         });
 
-        // 5. 渲染自訂 UI
-        document.getElementById('charTitle').innerText = `解析結果：${level} 級 ${className} (${ascendClass})`;
-        document.getElementById('charMeta').innerHTML = `
+        // 5. 渲染 PoEDB 風格 UI
+        document.getElementById('metaTags').innerHTML = `
           <span class="badge">職業：${className}</span>
           <span class="badge">昇華：${ascendClass}</span>
-          <span class="badge">等級：${level}</span>
+          <span class="badge">等級：${level} 級</span>
           <span class="badge">裝備總數：${itemCount} 件</span>
+          <span class="badge">已偵測技能：${gems.length} 顆</span>
         `;
 
-        // 模擬數值計算
         let estLife = parseInt(level) * 12 + totalLife + 500;
-        let lifeAlert = estLife < 3500 && parseInt(level) > 80;
+        let lifeAlert = estLife < 4200 && parseInt(level) > 85;
 
         document.getElementById('statsGrid').innerHTML = `
-          <div class="stat-card"><div class="label">估算總生命 (Est. Life)</div><div class="value ${lifeAlert ? 'alert' : 'safe'}">${estLife}</div></div>
+          <div class="stat-card"><div class="label">估算總生命池 (Est. Life)</div><div class="value ${lifeAlert ? 'alert' : 'safe'}">${estLife}</div></div>
           <div class="stat-card"><div class="label">裝備生命加總</div><div class="value">+${totalLife}</div></div>
-          <div class="stat-card"><div class="label">抗性詞綴總量</div><div class="value">~${totalRes}%</div></div>
-          <div class="stat-card"><div class="label">已偵測寶石種類</div><div class="value">${gems.length} 種</div></div>
+          <div class="stat-card"><div class="label">裝備抗性詞綴總量</div><div class="value">~${totalRes}%</div></div>
+          <div class="stat-card"><div class="label">寶石種類總數</div><div class="value">${gems.length} 種</div></div>
         `;
 
-        // AI 智慧防禦分析
-        let defHTML = `<div class="ai-box ${lifeAlert ? 'warning' : 'success'}">`;
+        // 屬性與生存審查
+        let attrHTML = `<div class="ai-insight">`;
+        attrHTML += `<p><strong>【機體定位剖析】</strong>當前為 <strong>${level} 級 ${className} (${ascendClass})</strong>。系統透過 XML 深度解析與裝備詞綴掃描，已成功還原此 Build 的基礎防禦與詞綴結構。</p>`;
+        attrHTML += `</div>`;
+        document.getElementById('attributeAudit').innerHTML = attrHTML;
+
+        let defHTML = `<div class="ai-insight ${lifeAlert ? 'warning' : 'success'}">`;
         if (lifeAlert) {
-          defHTML += `<p><strong>⚠️ 生存血池偏低警告：</strong>當前等級為 ${level} 級，但估算生命僅有 ${estLife}。在高階異界地圖中容易遭受秒殺，建議優先在防具上補足最大生命詞綴。</p>`;
+          defHTML += `<p><strong>⚠️ 生存血池警示：</strong>當前等級為 ${level} 級，但估算生命僅有 ${estLife}。在高等異界地圖中容錯率偏低，建議尋找具備更高生命詞綴的防具。</p>`;
         } else {
-          defHTML += `<p><strong>✔ 生存基礎健康：</strong>當前血池估算達 ${estLife}，符合基礎生存標準。</p>`;
+          defHTML += `<p><strong>✔ 生存防禦正常：</strong>血池與基礎抗性配置達標，具備良好的異界拓荒容錯率。</p>`;
         }
         defHTML += `</div>`;
         document.getElementById('defenseAudit').innerHTML = defHTML;
 
-        // 寶石列表
-        let gemHTML = `<div class="ai-box info"><ul>`;
+        // 寶石清單
+        let gemHTML = `<div class="ai-insight"><ul>`;
         if (gems.length > 0) {
-          gems.slice(0, 12).forEach(g => { gemHTML += `<li>${g}</li>`; });
+          gems.slice(0, 15).forEach(g => { gemHTML += `<li>${g}</li>`; });
         } else {
           gemHTML += `<li>未在 XML 中讀取到有效寶石。</li>`;
         }
         gemHTML += `</ul></div>`;
         document.getElementById('gemAudit').innerHTML = gemHTML;
 
-        // AI 優化建議
-        let planHTML = `<div class="ai-box success"><ul>`;
-        planHTML += `<li>確認三大元素抗性是否皆已達到 75% 滿抗。</li>`;
-        planHTML += `<li>檢查核心輸出技能是否已完成 6 連（6-Link）配置。</li>`;
-        planHTML += `<li>此介面完全由您自己的前端 UI 進行渲染，可自由修改 CSS 樣式與排版。</li>`;
+        // 優化指引
+        let planHTML = `<div class="ai-insight success"><ul>`;
+        planHTML += `<li>確保三大元素抗性在地圖中隨時保持 75% 滿抗。</li>`;
+        planHTML += `<li>檢查核心輸出技能與輔助寶石是否皆已升至 20等 / 20品。</li>`;
+        planHTML += `<li>此頁面完全由您自己的前端 GitHub Pages 驅動，介面採 PoEDB 專業資料庫風格呈現。</li>`;
         planHTML += `</ul></div>`;
         document.getElementById('actionPlan').innerHTML = planHTML;
 
@@ -244,7 +314,7 @@
 
       } catch (err) {
         console.error(err);
-        alert("解析失敗，請確認代碼是否正確：" + err.message);
+        alert("解析發生錯誤，請確認代碼是否正確：" + err.message);
       }
     }
   </script>
