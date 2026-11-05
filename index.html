@@ -33,7 +33,6 @@
 
     .container { width: 100%; max-width: 1200px; }
 
-    /* 頂部輸入區 */
     .input-panel {
       background-color: var(--bg-panel);
       border: 1px solid var(--border-color);
@@ -46,7 +45,7 @@
     p.subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 15px; }
     textarea {
       width: 100%;
-      height: 100px;
+      height: 110px;
       background-color: var(--bg-main);
       border: 1px solid var(--border-color);
       border-radius: 4px;
@@ -73,11 +72,7 @@
     }
     button:hover { background-color: #2ea043; }
 
-    /* 分析報告主面板 (PoEDB 樣式) */
-    .dashboard {
-      display: none;
-      width: 100%;
-    }
+    .dashboard { display: none; width: 100%; }
 
     .section-box {
       background-color: var(--bg-panel);
@@ -92,12 +87,8 @@
       font-size: 16px;
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
 
-    /* 角色元數據標籤列 */
     .meta-tags {
       display: flex;
       flex-wrap: wrap;
@@ -114,7 +105,6 @@
       font-weight: 600;
     }
 
-    /* 數據卡片網格 */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -133,7 +123,6 @@
     .stat-card .value.alert { color: var(--accent-red); }
     .stat-card .value.safe { color: var(--accent-green); }
 
-    /* AI 分析報告框 */
     .ai-insight {
       background: var(--bg-card);
       border-left: 4px solid var(--accent-blue);
@@ -154,8 +143,8 @@
 
   <div class="container">
     <div class="input-panel">
-      <h2>PoB 專業流派解析儀表板</h2>
-      <p class="subtitle">輸入任意 Path of Building 匯出碼，系統將自動解析原始 XML 並產出 PoEDB 風格的結構化數據與 AI 深度健檢報告</p>
+      <h2>PoB 專業流派分析儀表板</h2>
+      <p class="subtitle">輸入任意 Path of Building 匯出碼，系統將自動解碼 XML 結構並產出 PoEDB 風格的結構化數據與 AI 深度健檢報告</p>
       <textarea id="pobInput" placeholder="在此貼上 PoB 匯出碼 (eJz...)"></textarea>
       <div class="btn-group">
         <button type="button" onclick="parseAndAnalyze()">開始深度解析</button>
@@ -163,27 +152,23 @@
     </div>
 
     <div class="dashboard" id="dashboard">
-      <!-- 角色基本概觀 -->
       <div class="section-box">
         <h3>角色基礎架構總覽</h3>
         <div class="meta-tags" id="metaTags"></div>
         <div class="stats-grid" id="statsGrid"></div>
       </div>
 
-      <!-- AI 深度健檢與屬性審查 -->
       <div class="section-box">
         <h3>AI 核心屬性與生存防禦健檢</h3>
         <div id="attributeAudit"></div>
         <div id="defenseAudit"></div>
       </div>
 
-      <!-- 技能寶石配置清單 -->
       <div class="section-box">
         <h3>技能寶石配置摘要</h3>
         <div id="gemAudit"></div>
       </div>
 
-      <!-- 流派優化指引 -->
       <div class="section-box">
         <h3>流派專屬優化與改善指引</h3>
         <div id="actionPlan"></div>
@@ -258,7 +243,7 @@
           if (name && !gems.includes(name)) gems.push(name);
         });
 
-        // 5. 渲染 PoEDB 風格 UI
+        // 5. 渲染 UI
         document.getElementById('metaTags').innerHTML = `
           <span class="badge">職業：${className}</span>
           <span class="badge">昇華：${ascendClass}</span>
@@ -304,6 +289,9 @@
 
         // 優化指引
         let planHTML = `<div class="ai-insight success"><ul>`;
+        if (className.includes("遊俠") || className.includes("Ranger")) {
+          planHTML += `<li><strong>銳眼/遊俠流派注意事項：</strong>請務必確認天賦盤與西里的戰衣使「法術壓抑」達到 100%。</li>`;
+        }
         planHTML += `<li>確保三大元素抗性在地圖中隨時保持 75% 滿抗。</li>`;
         planHTML += `<li>檢查核心輸出技能與輔助寶石是否皆已升至 20等 / 20品。</li>`;
         planHTML += `<li>此頁面完全由您自己的前端 GitHub Pages 驅動，介面採 PoEDB 專業資料庫風格呈現。</li>`;
