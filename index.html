@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 模組化引擎分析儀表板 (PoEDB Style)</title>
-  <!-- 載入 pako.js 壓縮解碼庫 -->
+  <title>PoB 主程式架構解析儀表板</title>
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
-  <!-- 引入您的獨立 PoB 解析引擎 -->
-  <script src="pob-engine.js"></script>
+  <!-- 引入獨立的運算引擎檔案 -->
+  <script src="pob-calculator.js"></script>
   <style>
     :root {
       --bg-main: #0e1116;
@@ -145,11 +144,11 @@
 
   <div class="container">
     <div class="input-panel">
-      <h2>PoB 模組化引擎分析儀表板</h2>
-      <p class="subtitle">透過獨立的 pob-engine.js 模組解析匯出碼，並結合 PoEDB 風格介面產出深度分析報告</p>
+      <h2>PoB 主程式架構解析儀表板</h2>
+      <p class="subtitle">透過獨立的 pob-calculator.js 引擎載入匯出碼，並呈現 PoEDB 風格的結構化分析</p>
       <textarea id="pobInput" placeholder="在此貼上 PoB 匯出碼 (eJz...)"></textarea>
       <div class="btn-group">
-        <button type="button" onclick="runEngineAnalysis()">呼叫引擎並分析</button>
+        <button type="button" onclick="executeAnalysis()">執行引擎分析</button>
       </div>
     </div>
 
@@ -161,7 +160,7 @@
       </div>
 
       <div class="section-box">
-        <h3>引擎核心屬性與生存防禦健檢</h3>
+        <h3>引擎屬性與生存防禦健檢</h3>
         <div id="attributeAudit"></div>
         <div id="defenseAudit"></div>
       </div>
@@ -179,61 +178,62 @@
   </div>
 
   <script>
-    function runEngineAnalysis() {
+    function executeAnalysis() {
       const rawInput = document.getElementById('pobInput').value.trim();
       const dashboard = document.getElementById('dashboard');
 
       try {
-        // 呼叫我們獨立的 pob-engine.js 進行解析
-        const data = PoBEngine.parse(rawInput);
+        // 呼叫獨立引擎檔案中的分析方法
+        const data = PoBCalculator.analyze(rawInput);
 
-        // 渲染 UI 畫面
+        // 渲染 UI
         document.getElementById('metaTags').innerHTML = `
           <span class="badge">職業：${data.className}</span>
           <span class="badge">昇華：${data.ascendClass}</span>
           <span class="badge">等級：${data.level} 級</span>
           <span class="badge">裝備總數：${data.itemCount} 件</span>
-          <span class="badge">已偵測技能：${data.gems.length} 顆</span>
+          <span class="badge">偵測寶石：${data.gems.length} 顆</span>
         `;
 
         let lifeAlert = data.estLife < 4200 && data.level > 85;
 
         document.getElementById('statsGrid').innerHTML = `
           <div class="stat-card"><div class="label">估算總生命池 (Est. Life)</div><div class="value ${lifeAlert ? 'alert' : 'safe'}">${data.estLife}</div></div>
-          <div class="stat-card"><div class="label">裝備生命加總</div><div class="value">+${data.totalLife}</div></div>
-          <div class="stat-card"><div class="label">裝備抗性詞綴總量</div><div class="value">~${data.totalRes}%</div></div>
-          <div class="stat-card"><div class="label">寶石種類總數</div><div class="value">${data.gems.length} 種</div></div>
+          <div class="stat-card"><div class="label">力量加總 (Str)</div><div class="value">${data.totalStr}</div></div>
+          <div class="stat-card"><div class="label">敏捷加總 (Dex)</div><div class="value">${data.totalDex}</div></div>
+          <div class="stat-card"><div class="label">智力總計 (Int)</div><div class="value ${data.intAlert ? 'alert' : 'safe'}">${data.baseInt}</div></div>
         `;
 
-        // 屬性與生存審查
-        let attrHTML = `<div class="ai-insight">`;
-        attrHTML += `<p><strong>【引擎解析通報】</strong>成功透過 <code>pob-engine.js</code> 載入 <strong>${data.level} 級 ${data.className} (${data.ascendClass})</strong>。資料結構對應完整。</p>`;
+        let attrHTML = `<div class="ai-insight ${data.intAlert ? 'warning' : 'success'}">`;
+        if (data.intAlert) {
+          attrHTML += `<p><strong>⚠️ 智力門檻警示：</strong>當前計算所得的智力總計為 ${data.baseInt}，低於高等輔助寶石常見的 111 門檻，部分技能可能會呈現紅字卡死。</p>`;
+        } else {
+          attrHTML += `<p><strong>✔ 屬性需求達標：</strong>智力總計 ${data.baseInt}，符合高階輔助寶石需求。</p>`;
+        }
         attrHTML += `</div>`;
         document.getElementById('attributeAudit').innerHTML = attrHTML;
 
         let defHTML = `<div class="ai-insight ${lifeAlert ? 'warning' : 'success'}">`;
         if (lifeAlert) {
-          defHTML += `<p><strong>⚠️ 生存血池警示：</strong>當前等級為 ${data.level} 級，估算生命僅有 ${data.estLife}，低於高等地圖安全線。</p>`;
+          defHTML += `<p><strong>⚠️ 生存血池警示：</strong>當前等級 ${data.level} 級，估算生命 ${data.estLife} 偏低，建議於防具中補足最大生命詞綴。</p>`;
         } else {
-          defHTML += `<p><strong>✔ 生存防禦正常：</strong>血池與基礎抗性配置達標。</p>`;
+          defHTML += `<p><strong>✔ 生存防禦正常：</strong>血池配置符合異界拓荒標準。</p>`;
         }
         defHTML += `</div>`;
         document.getElementById('defenseAudit').innerHTML = defHTML;
 
-        // 寶石清單
         let gemHTML = `<div class="ai-insight"><ul>`;
         if (data.gems.length > 0) {
-          data.gems.slice(0, 15).forEach(g => { gemHTML += `<li>${g}</li>`; });
+          data.gems.slice(0, 15).forEach(g => { gemHTML += `<li>${g.name} (Lv ${g.level})</li>`; });
         } else {
           gemHTML += `<li>未在解析資料中讀取到有效寶石。</li>`;
         }
         gemHTML += `</ul></div>`;
         document.getElementById('gemAudit').innerHTML = gemHTML;
 
-        // 優化指引
         let planHTML = `<div class="ai-insight success"><ul>`;
-        planHTML += `<li>模組化解析架構已成功運作，所有邏輯皆由獨立的 <code>pob-engine.js</code> 驅動。</li>`;
-        planHTML += `<li>確保三大元素抗性保持 75% 滿抗，並檢查核心寶石等級。</li>`;
+        planHTML += `<li>核心計算邏輯已成功封裝至 <code>pob-calculator.js</code> 獨立檔案中。</li>`;
+        planHTML += `<li>確保抗性維持 75% 滿抗，並持續透過引擎擴充更多傷害與防禦計算規則。</li>`;
         planHTML += `</ul></div>`;
         document.getElementById('actionPlan').innerHTML = planHTML;
 
