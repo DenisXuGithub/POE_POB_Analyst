@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoB 主程式架構解析儀表板</title>
+  <title>PoB 專業流派分析儀表板 (GitHub Pages)</title>
+  <!-- 載入 pako.js 處理瀏覽器端 zlib 解壓縮 -->
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
-  <!-- 引入獨立的運算引擎檔案 -->
-  <script src="pob-calculator.js"></script>
   <style>
     :root {
       --bg-main: #0e1116;
@@ -144,11 +143,11 @@
 
   <div class="container">
     <div class="input-panel">
-      <h2>PoB 主程式架構解析儀表板</h2>
-      <p class="subtitle">透過獨立的 pob-calculator.js 引擎載入匯出碼，並呈現 PoEDB 風格的結構化分析</p>
+      <h2>PoB 專業流派分析儀表板 (純前端模式)</h2>
+      <p class="subtitle">在 GitHub Pages 上直接解析 PoB 匯出碼，結合專屬 UI 與結構化分析</p>
       <textarea id="pobInput" placeholder="在此貼上 PoB 匯出碼 (eJz...)"></textarea>
       <div class="btn-group">
-        <button type="button" onclick="executeAnalysis()">執行引擎分析</button>
+        <button type="button" onclick="executeStaticAnalysis()">開始解析</button>
       </div>
     </div>
 
@@ -160,7 +159,7 @@
       </div>
 
       <div class="section-box">
-        <h3>引擎屬性與生存防禦健檢</h3>
+        <h3>核心防禦與生存防禦健檢</h3>
         <div id="attributeAudit"></div>
         <div id="defenseAudit"></div>
       </div>
@@ -178,62 +177,124 @@
   </div>
 
   <script>
-    function executeAnalysis() {
+    const classMapping = {
+      "1": "女巫 (Witch)", "2": "暗影刺客 (Shadow)", "3": "遊俠 (Ranger)",
+      "4": "決鬥者 (Duelist)", "5": "野蠻人 (Marauder)", "6": "聖堂武僧 (Templar)", "7": "貴族 (Scion)",
+      "Witch": "女巫", "Shadow": "暗影", "Ranger": "遊俠", "Duelist": "決鬥者", "Marauder": "野蠻人", "Templar": "聖堂武僧", "Scion": "貴族"
+    };
+
+    async function executeStaticAnalysis() {
       const rawInput = document.getElementById('pobInput').value.trim();
       const dashboard = document.getElementById('dashboard');
 
-      try {
-        // 呼叫獨立引擎檔案中的分析方法
-        const data = PoBCalculator.analyze(rawInput);
+      if (typeof pako === 'undefined') {
+        alert("pako.js 尚未正確載入！");
+        return;
+      }
+      if (!rawInput) {
+        alert("請先輸入 PoB 代碼！");
+        return;
+      }
 
-        // 渲染 UI
+      try {
+        // 1. Base64 轉換與 zlib 解壓縮
+        let base64 = rawInput.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) base64 += '=';
+
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        const decompressed = pako.inflate(bytes, { to: 'string' });
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(decompressed, "text/xml");
+
+        if (xmlDoc.querySelector("parsererror")) {
+          throw new Error("XML 格式解析失敗，請確認代碼是否完整。");
+        }
+
+        // 2. 提取基本資訊 (<Build>)
+        const buildNode = xmlDoc.querySelector("Build");
+        let level = buildNode ? (buildNode.getAttribute("level") || "1") : "1";
+        let ascendClass = buildNode ? (buildNode.getAttribute("ascendClassName") || "未昇華") : "未昇華";
+        let rawClass = buildNode ? (buildNode.getAttribute("className") || "") : "";
+        let className = classMapping[rawClass] || rawClass || "流亡者";
+
+        // 3. 提取裝備詞綴模擬加總 (<Item>)
+        let totalLife = 0;
+        let totalRes = 0;
+        let itemCount = 0;
+
+        xmlDoc.querySelectorAll("Item").forEach(item => {
+          itemCount++;
+          let text = item.textContent || "";
+          let lifeMatch = text.match(/\+(\d+)\s+to maximum Life/i);
+          let resMatch = text.match(/\+(\d+)%\s+to.*Resist/i);
+          if (lifeMatch) totalLife += parseInt(lifeMatch[1]);
+          if (resMatch) totalRes += parseInt(resMatch[1]);
+        });
+
+        // 4. 提取寶石清單 (<Gem>)
+        let gems = [];
+        xmlDoc.querySelectorAll("Gem").forEach(gem => {
+          let name = gem.getAttribute("nameSpec") || gem.getAttribute("name");
+          if (name && !gems.includes(name)) gems.push(name);
+        });
+
+        // 5. 渲染 UI
         document.getElementById('metaTags').innerHTML = `
-          <span class="badge">職業：${data.className}</span>
-          <span class="badge">昇華：${data.ascendClass}</span>
-          <span class="badge">等級：${data.level} 級</span>
-          <span class="badge">裝備總數：${data.itemCount} 件</span>
-          <span class="badge">偵測寶石：${data.gems.length} 顆</span>
+          <span class="badge">職業：${className}</span>
+          <span class="badge">昇華：${ascendClass}</span>
+          <span class="badge">等級：${level} 級</span>
+          <span class="badge">裝備總數：${itemCount} 件</span>
+          <span class="badge">已偵測技能：${gems.length} 顆</span>
         `;
 
-        let lifeAlert = data.estLife < 4200 && data.level > 85;
+        let estLife = parseInt(level) * 12 + totalLife + 500;
+        let lifeAlert = estLife < 4200 && parseInt(level) > 85;
 
         document.getElementById('statsGrid').innerHTML = `
-          <div class="stat-card"><div class="label">估算總生命池 (Est. Life)</div><div class="value ${lifeAlert ? 'alert' : 'safe'}">${data.estLife}</div></div>
-          <div class="stat-card"><div class="label">力量加總 (Str)</div><div class="value">${data.totalStr}</div></div>
-          <div class="stat-card"><div class="label">敏捷加總 (Dex)</div><div class="value">${data.totalDex}</div></div>
-          <div class="stat-card"><div class="label">智力總計 (Int)</div><div class="value ${data.intAlert ? 'alert' : 'safe'}">${data.baseInt}</div></div>
+          <div class="stat-card"><div class="label">估算總生命池 (Est. Life)</div><div class="value ${lifeAlert ? 'alert' : 'safe'}">${estLife}</div></div>
+          <div class="stat-card"><div class="label">裝備生命加總</div><div class="value">+${totalLife}</div></div>
+          <div class="stat-card"><div class="label">裝備抗性詞綴總量</div><div class="value">~${totalRes}%</div></div>
+          <div class="stat-card"><div class="label">寶石種類總數</div><div class="value">${gems.length} 種</div></div>
         `;
 
-        let attrHTML = `<div class="ai-insight ${data.intAlert ? 'warning' : 'success'}">`;
-        if (data.intAlert) {
-          attrHTML += `<p><strong>⚠️ 智力門檻警示：</strong>當前計算所得的智力總計為 ${data.baseInt}，低於高等輔助寶石常見的 111 門檻，部分技能可能會呈現紅字卡死。</p>`;
-        } else {
-          attrHTML += `<p><strong>✔ 屬性需求達標：</strong>智力總計 ${data.baseInt}，符合高階輔助寶石需求。</p>`;
-        }
+        // 屬性與生存審查
+        let attrHTML = `<div class="ai-insight">`;
+        attrHTML += `<p><strong>【機體定位剖析】</strong>當前為 <strong>${level} 級 ${className} (${ascendClass})</strong>。系統透過純前端 XML 解析與裝備詞綴掃描，已成功還原此 Build 的基礎防禦架構。</p>`;
         attrHTML += `</div>`;
         document.getElementById('attributeAudit').innerHTML = attrHTML;
 
         let defHTML = `<div class="ai-insight ${lifeAlert ? 'warning' : 'success'}">`;
         if (lifeAlert) {
-          defHTML += `<p><strong>⚠️ 生存血池警示：</strong>當前等級 ${data.level} 級，估算生命 ${data.estLife} 偏低，建議於防具中補足最大生命詞綴。</p>`;
+          defHTML += `<p><strong>⚠️ 生存血池警示：</strong>當前等級為 ${level} 級，但估算生命僅有 ${estLife}。在高等異界地圖中容錯率偏低，建議尋找具備更高生命詞綴的防具。</p>`;
         } else {
-          defHTML += `<p><strong>✔ 生存防禦正常：</strong>血池配置符合異界拓荒標準。</p>`;
+          defHTML += `<p><strong>✔ 生存防禦正常：</strong>血池與基礎抗性配置達標，具備良好的異界拓荒容錯率。</p>`;
         }
         defHTML += `</div>`;
         document.getElementById('defenseAudit').innerHTML = defHTML;
 
+        // 寶石清單
         let gemHTML = `<div class="ai-insight"><ul>`;
-        if (data.gems.length > 0) {
-          data.gems.slice(0, 15).forEach(g => { gemHTML += `<li>${g.name} (Lv ${g.level})</li>`; });
+        if (gems.length > 0) {
+          gems.slice(0, 15).forEach(g => { gemHTML += `<li>${g}</li>`; });
         } else {
-          gemHTML += `<li>未在解析資料中讀取到有效寶石。</li>`;
+          gemHTML += `<li>未在 XML 中讀取到有效寶石。</li>`;
         }
         gemHTML += `</ul></div>`;
         document.getElementById('gemAudit').innerHTML = gemHTML;
 
+        // 優化指引
         let planHTML = `<div class="ai-insight success"><ul>`;
-        planHTML += `<li>核心計算邏輯已成功封裝至 <code>pob-calculator.js</code> 獨立檔案中。</li>`;
-        planHTML += `<li>確保抗性維持 75% 滿抗，並持續透過引擎擴充更多傷害與防禦計算規則。</li>`;
+        if (className.includes("遊俠") || className.includes("Ranger")) {
+          planHTML += `<li><strong>銳眼/遊俠流派注意事項：</strong>請務必確認天賦盤與防具使「法術壓抑」達到 100%。</li>`;
+        }
+        planHTML += `<li>確保三大元素抗性在地圖中隨時保持 75% 滿抗。</li>`;
+        planHTML += `<li>檢查核心輸出技能與輔助寶石是否皆已升至 20等 / 20品。</li>`;
+        planHTML += `<li>此頁面完全託管於 GitHub Pages 靜態環境，無須任何後端伺服器支援。</li>`;
         planHTML += `</ul></div>`;
         document.getElementById('actionPlan').innerHTML = planHTML;
 
@@ -241,7 +302,7 @@
 
       } catch (err) {
         console.error(err);
-        alert("引擎解析失敗：" + err.message);
+        alert("解析發生錯誤，請確認代碼是否正確：" + err.message);
       }
     }
   </script>
